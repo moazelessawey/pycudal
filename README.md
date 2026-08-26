@@ -1,17 +1,17 @@
-# CuDAL
+# PyCuDAL
 
 <p align="center">
-  <img src="assets/logo.png" alt="CuDAL logo" width="120"/>
+  <img src="assets/logo.png" alt="PyCuDAL logo" width="120"/>
 </p>
 
 **Parametric acceptance limits for USP <905> Content Uniformity and USP <711> Dissolution** —
 a Python re-implementation of the SAS programs `CALCUSP1/2`, `CALDISP1/2`,
 `EVCUSP1/2`, `EVDISP1/2`, `SMPCUSP1/2`, `SMPDISP1/2`, with a CLI and two GUIs.
 
-[![CI](https://github.com/moazelessawey/cudal/actions/workflows/ci.yml/badge.svg)](https://github.com/moazelessawey/cudal/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/cudal.svg)](https://pypi.org/project/cudal/)
+[![CI](https://github.com/moazelessawey/pycudal/actions/workflows/ci.yml/badge.svg)](https://github.com/moazelessawey/pycudal/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/pycudal.svg)](https://pypi.org/project/pycudal/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/moazelessawey/cudal)](https://github.com/moazelessawey/cudal/releases)
+[![Release](https://img.shields.io/github/v/release/moazelessawey/pycudal)](https://github.com/moazelessawey/pycudal/releases)
 
 ---
 

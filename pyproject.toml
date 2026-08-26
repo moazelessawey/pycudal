@@ -3,7 +3,7 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "cudal"
+name = "pycudal"
 dynamic = ["version"]
 description = "Parametric acceptance limits for USP <905> Content Uniformity and USP <711> Dissolution (mirrors SAS CALCUSPx/CALDISPx, EVCUSPx/EVDISPx, SMPCUSPx/SMPDISPx)."
 readme = "README.md"
