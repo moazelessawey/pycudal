@@ -1812,7 +1812,7 @@ class CudalApp(tk.Tk):
 # Self-test (tiny unit tests for the pure helpers)
 # ---------------------------------------------------------------------------
 def run_selftest():
-    assert make_grid(1.0, 2.0, 0.5) == [1.0, 1.5, 2.0]
+    assert make_grid(1.0, 2.0, 0.5, "x") == [1.0, 1.5, 2.0]
     try:
         make_grid(2.0, 1.0, 1.0, "x")
         raise AssertionError("make_grid should reject high < low")
