@@ -46,6 +46,7 @@ import threading
 import traceback
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
+from tkinter import font as tkfont
 
 import numpy as np
 import pandas as pd
@@ -90,80 +91,157 @@ except Exception:  # pragma: no cover - reportlab is optional
 # ---------------------------------------------------------------------------
 VERSION = "1.3.0"
 
-BG = "#f4f6f9"
+BG = "#eef1f7"
 PANEL_BG = "#ffffff"
-ACCENT = "#2f6fed"
-ACCENT_DARK = "#204ea6"
-TEXT = "#1c2733"
-MUTED = "#64748b"
-BORDER = "#e2e8f0"
-OK_GREEN = "#1a8754"
-ERR_RED = "#c0392b"
-FONT_FAMILY = "helvetica"
+ACCENT = "#2563eb"
+ACCENT_DARK = "#1d4ed8"
+ACCENT_LIGHT = "#e7edfd"
+TEXT = "#1e2837"
+MUTED = "#67748a"
+BORDER = "#dbe2ec"
+OK_GREEN = "#15803d"
+ERR_RED = "#dc2626"
+SELECT_BG = "#dbe7fd"
+SELECT_FG = "#0d2f70"
+ROW_ALT_BG = "#f6f8fc"
+TOOLTIP_BG = "#28324a"
+FONT_FAMILY = "helvetica"  # resolved to a native-looking font in setup_style()
 
 TABLE_FONT_SIZE = 12  # integer on purpose (fractional sizes break some Tk builds)
 
 SERIES_COLORS = [ACCENT, OK_GREEN, ERR_RED, "#8e44ad",
                  "#e67e22", "#16a085", "#c2417d", "#5b6470"]
 
+
+def _resolve_font_family(root: tk.Tk) -> str:
+    """Pick a font that actually looks native/modern on the running OS.
+
+    ttk's "clam" theme (used below for consistent cross-platform styling)
+    doesn't touch fonts, so without this the app falls back to a generic
+    default that looks dated on both Windows (should be Segoe UI) and
+    Linux (should be a clean sans like Ubuntu/Noto/DejaVu Sans).
+    """
+    try:
+        available = set(tkfont.families(root))
+    except Exception:
+        available = set()
+
+    if sys.platform.startswith("win"):
+        preferred = ["Segoe UI", "Segoe UI Variable Text", "Tahoma", "Arial"]
+    elif sys.platform == "darwin":
+        preferred = ["SF Pro Text", "Helvetica Neue", "Helvetica"]
+    else:  # Linux / other Unix desktops
+        preferred = ["Ubuntu", "Noto Sans", "DejaVu Sans", "Cantarell",
+                     "Liberation Sans", "courier"]
+
+    for family in preferred:
+        if family in available:
+            return family
+    return "TkDefaultFont"
+
 SETTINGS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                              "cudal_gui_settings.json")
 
 
 def setup_style(root: tk.Tk) -> None:
+    global FONT_FAMILY
+    FONT_FAMILY = _resolve_font_family(root)
+
     root.configure(bg=BG)
     style = ttk.Style(root)
 
+    # "clam" is the only built-in ttk theme that honors full color
+    # customization consistently on both Windows and Linux (the native
+    # "vista"/"xpnative" and "alt"/"default" themes ignore most of the
+    # colors below), so it's kept as the base and then refined further.
     try:
         style.theme_use("clam")
     except tk.TclError:
         pass
 
-    style.configure(".", background=BG, foreground=TEXT, font=(FONT_FAMILY, 10))
+    base_font = (FONT_FAMILY, 10)
+    bold_font = (FONT_FAMILY, 10, "bold")
+
+    style.configure(".", background=BG, foreground=TEXT, font=base_font,
+                    bordercolor=BORDER, lightcolor=BORDER, darkcolor=BORDER,
+                    focuscolor=ACCENT)
     style.configure("TFrame", background=BG)
     style.configure("Panel.TFrame", background=PANEL_BG)
     style.configure("TLabel", background=BG, foreground=TEXT)
     style.configure("Panel.TLabel", background=PANEL_BG, foreground=TEXT)
     style.configure("Muted.TLabel", background=PANEL_BG, foreground=MUTED, font=(FONT_FAMILY, 9))
-    style.configure("Header.TLabel", background=BG, foreground=TEXT, font=(FONT_FAMILY, 16, "bold"))
+    style.configure("Header.TLabel", background=BG, foreground=TEXT, font=(FONT_FAMILY, 17, "bold"))
     style.configure("SubHeader.TLabel", background=BG, foreground=MUTED, font=(FONT_FAMILY, 10))
     style.configure("SectionTitle.TLabel", background=PANEL_BG, foreground=ACCENT_DARK,
                     font=(FONT_FAMILY, 11, "bold"))
-    style.configure("TNotebook", background=BG, borderwidth=0, tabmargins=(8, 8, 8, 0))
-    style.configure("TNotebook.Tab", padding=(16, 8), font=(FONT_FAMILY, 10, "bold"))
-    style.map("TNotebook.Tab",
-              background=[("selected", PANEL_BG), ("!selected", "#dde3ea")],
-              foreground=[("selected", ACCENT_DARK), ("!selected", MUTED)])
-    style.configure("TRadiobutton", background=PANEL_BG, foreground=TEXT, font=(FONT_FAMILY, 10))
-    style.map("TRadiobutton", background=[("active", PANEL_BG)])
-    style.configure("TEntry", fieldbackground="white", padding=4)
-    style.configure("Invalid.TEntry", fieldbackground="#fdecea", foreground=ERR_RED, padding=4)
-    style.configure("TLabelframe", background=PANEL_BG, bordercolor=BORDER)
-    style.configure("TLabelframe.Label", background=PANEL_BG, foreground=ACCENT_DARK,
-                    font=(FONT_FAMILY, 10, "bold"))
-    style.configure("Accent.TButton", background=ACCENT, foreground="white",
-                    font=(FONT_FAMILY, 10, "bold"), padding=(14, 8), borderwidth=0)
-    style.map("Accent.TButton",
-              background=[("active", ACCENT_DARK), ("disabled", "#9db4e8")],
-              foreground=[("disabled", "white")])
-    style.configure("Secondary.TButton", background="#eef1f6", foreground=TEXT,
-                    font=(FONT_FAMILY, 9), padding=(10, 6), borderwidth=0)
-    style.map("Secondary.TButton", background=[("active", "#dfe4ec")])
 
+    # ---- notebook / tabs --------------------------------------------------
+    style.configure("TNotebook", background=BG, borderwidth=0, tabmargins=(10, 10, 10, 0))
+    style.configure("TNotebook.Tab", padding=(18, 9), font=bold_font,
+                    background="#dee4ee", foreground=MUTED, borderwidth=0)
+    style.map("TNotebook.Tab",
+              background=[("selected", PANEL_BG), ("active", "#e8ecf3")],
+              foreground=[("selected", ACCENT_DARK), ("active", TEXT)],
+              expand=[("selected", (2, 2, 2, 0))])
+
+    # ---- inputs -------------------------------------------------------------
+    style.configure("TRadiobutton", background=PANEL_BG, foreground=TEXT, font=base_font)
+    style.map("TRadiobutton", background=[("active", PANEL_BG)])
+    style.configure("TCheckbutton", background=PANEL_BG, foreground=TEXT, font=base_font)
+    style.map("TCheckbutton", background=[("active", PANEL_BG)])
+    style.configure("TEntry", fieldbackground="white", foreground=TEXT,
+                    bordercolor=BORDER, lightcolor=BORDER, darkcolor=BORDER,
+                    padding=5, insertcolor=TEXT)
+    style.map("TEntry",
+              bordercolor=[("focus", ACCENT)],
+              lightcolor=[("focus", ACCENT)],
+              darkcolor=[("focus", ACCENT)])
+    style.configure("Invalid.TEntry", fieldbackground="#fdecea", foreground=ERR_RED,
+                    bordercolor=ERR_RED, lightcolor=ERR_RED, darkcolor=ERR_RED, padding=5)
+    style.configure("TLabelframe", background=PANEL_BG, bordercolor=BORDER,
+                    lightcolor=BORDER, darkcolor=BORDER, borderwidth=1)
+    style.configure("TLabelframe.Label", background=PANEL_BG, foreground=ACCENT_DARK,
+                    font=bold_font)
+
+    # ---- buttons -------------------------------------------------------------
+    style.configure("Accent.TButton", background=ACCENT, foreground="white",
+                    font=bold_font, padding=(16, 9), borderwidth=0, focusthickness=0)
+    style.map("Accent.TButton",
+              background=[("disabled", "#a9c1f2"), ("pressed", ACCENT_DARK), ("active", ACCENT_DARK)],
+              foreground=[("disabled", "white")],
+              relief=[("pressed", "sunken"), ("!pressed", "flat")])
+    style.configure("Secondary.TButton", background="#e7ebf2", foreground=TEXT,
+                    font=(FONT_FAMILY, 9), padding=(11, 7), borderwidth=0, focusthickness=0)
+    style.map("Secondary.TButton",
+              background=[("disabled", "#f1f3f7"), ("pressed", "#cfd6e2"), ("active", "#dbe1eb")],
+              foreground=[("disabled", MUTED)])
+
+    # ---- scrollbars (clam's defaults are chunky; make them slim & flat) -----
+    style.configure("Vertical.TScrollbar", background="#c9d2e0", troughcolor=BG,
+                    bordercolor=BG, arrowcolor=MUTED, gripcount=0, width=13, relief="flat")
+    style.configure("Horizontal.TScrollbar", background="#c9d2e0", troughcolor=BG,
+                    bordercolor=BG, arrowcolor=MUTED, gripcount=0, width=13, relief="flat")
+    style.map("Vertical.TScrollbar", background=[("active", ACCENT)])
+    style.map("Horizontal.TScrollbar", background=[("active", ACCENT)])
+
+    # ---- results table -------------------------------------------------------
     style.configure("Treeview", background=PANEL_BG, fieldbackground=PANEL_BG,
-                    foreground=TEXT, rowheight=24,
+                    foreground=TEXT, rowheight=26,
                     font=(FONT_FAMILY, TABLE_FONT_SIZE), borderwidth=0)
-    style.configure("Treeview.Heading", background="#eef1f6", foreground=TEXT,
-                    font=(FONT_FAMILY, TABLE_FONT_SIZE, "bold"))
+    style.configure("Treeview.Heading", background="#e7ebf2", foreground=TEXT,
+                    font=(FONT_FAMILY, TABLE_FONT_SIZE, "bold"), relief="flat", padding=(6, 6))
     style.map("Treeview",
-              background=[("selected", "#d7e3fc")],
-              fieldbackground=[("selected", "#d7e3fc")],
-              foreground=[("selected", "#0b1b3d")])
+              background=[("selected", SELECT_BG)],
+              fieldbackground=[("selected", SELECT_BG)],
+              foreground=[("selected", SELECT_FG)])
     style.map("Treeview.Heading",
-              background=[("active", "#e2e8f0")], foreground=[("active", TEXT)])
+              background=[("active", "#dbe2ec"), ("pressed", ACCENT_LIGHT)],
+              foreground=[("active", TEXT)])
 
     style.configure("Status.TLabel", background=BG, foreground=MUTED, font=(FONT_FAMILY, 9))
-    style.configure("green.Horizontal.TProgressbar", troughcolor="#e5e9f0", background=ACCENT, thickness=28)
+    style.configure("green.Horizontal.TProgressbar", troughcolor="#e1e6ee",
+                    background=ACCENT, bordercolor="#e1e6ee",
+                    lightcolor=ACCENT, darkcolor=ACCENT, thickness=22)
 
 # ---------------------------------------------------------------------------
 # SAS-style PDF listing export (reportlab, Courier, column wrapping)
@@ -380,9 +458,9 @@ class ToolTip:
         y = self.widget.winfo_rooty() + self.widget.winfo_height() + 4
         self._tip = tk.Toplevel(self.widget)
         self._tip.wm_overrideredirect(True)
-        self._tip.configure(bg="#2b3648")
-        tk.Label(self._tip, text=self.text, bg="#2b3648", fg="white",
-                 font=(FONT_FAMILY, 9), justify="left", padx=8, pady=4).pack()
+        self._tip.configure(bg=TOOLTIP_BG)
+        tk.Label(self._tip, text=self.text, bg=TOOLTIP_BG, fg="white",
+                 font=(FONT_FAMILY, 9), justify="left", padx=9, pady=5).pack()
         self._tip.geometry(f"+{x}+{y}")
 
     def _hide(self, event=None):
@@ -825,13 +903,13 @@ class ResultsPanel(ttk.Frame):
         try:
             self.tree.configure(background=PANEL_BG, fieldbackground=PANEL_BG,
                                 foreground=TEXT, font=(FONT_FAMILY, TABLE_FONT_SIZE))
-            self.tree.configure(selectbackground="#d7e3fc", selectforeground="#0b1b3d")
+            self.tree.configure(selectbackground=SELECT_BG, selectforeground=SELECT_FG)
         except tk.TclError:
             pass
 
         self.tree.tag_configure("data", foreground=TEXT, background=PANEL_BG,
                                 font=(FONT_FAMILY, TABLE_FONT_SIZE))
-        self.tree.tag_configure("even", background="#f6f8fb")
+        self.tree.tag_configure("even", background=ROW_ALT_BG)
         self.tree.tag_configure("low", foreground=ERR_RED)
         self.tree.tag_configure("high", foreground=OK_GREEN)
 

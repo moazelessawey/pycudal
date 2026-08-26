@@ -3,7 +3,14 @@
 
 uv pip install .[all,qt] pyinstaller
 
-uv run pyinstaller --onefile --noconsole --name CuDAL --add-data "cudal/logo.png:cudal" cudal_gui.py
-uv run pyinstaller --onefile --noconsole --name CuDAL-Qt --add-data "cudal/logo.png:cudal" extras/cudal_gui_pyside6.py
+pyinstaller --onefile --noconsole --name CuDAL-Qt \
+  --paths . \
+  --collect-all cudal \
+  --collect-all scipy \
+  --collect-all pandas \
+  --collect-all numpy \
+  --add-data "assets/logo.png:." \
+  --hidden-import matplotlib.backends.backend_qtagg \
+  extras/cudal_gui_pyside6.py
 
-echo "Done: dist/CuDAL and dist/CuDAL-Qt"
+echo "Done: dist/CuDAL-Qt"
