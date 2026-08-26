@@ -1,0 +1,7 @@
+include README.md LICENSE requirements.txt
+include cudal/logo.png
+recursive-include assets *
+recursive-include extras *.py
+recursive-include tests *.py
+prune build
+prune dist

@@ -1,0 +1,9 @@
+numpy
+pandas
+scipy
+# optional (GUI exports / plots)
+matplotlib
+openpyxl
+reportlab
+# optional Qt GUI (extras/cudal_gui_pyside6.py)
+# PySide6

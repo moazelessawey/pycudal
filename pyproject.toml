@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cudal"
+dynamic = ["version"]
+description = "Parametric acceptance limits for USP <905> Content Uniformity and USP <711> Dissolution (mirrors SAS CALCUSPx/CALDISPx, EVCUSPx/EVDISPx, SMPCUSPx/SMPDISPx)."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { file = "LICENSE" }
+authors = [{ name = "Moaz El-Essawey", email = "moazelessawey@gmail.com" }]
+keywords = ["USP", "content uniformity", "dissolution", "acceptance limits", "pharmacopeia"]
+dependencies = ["numpy==2.5.2", "pandas==3.0.5", "scipy==1.18.1"]
+
+[project.optional-dependencies]          # keep the base install small
+plot = ["matplotlib==3.11.1"]            # plotting in the GUIs
+xlsx = ["openpyxl==3.1.5"]               # Excel export
+pdf  = ["reportlab==5.0.1"]                      # SAS-style PDF listings
+qt   = ["PySide6==6.11.2", "matplotlib==3.11.1"] # only for the optional Qt GUI (extras/)
+all  = ["matplotlib==3.11.1", "openpyxl==3.1.5", "reportlab==5.0.1"]
+dev  = ["pytest", "pyinstaller"]
+
+[project.scripts]
+cudal     = "cudal.cli:main"          # CLI
+cudal-gui = "cudal.gui:main"          # Tkinter GUI (stdlib only -> small)
+
+[project.urls]
+Homepage   = "https://github.com/moazelessawey/cudal"
+Repository = "https://github.com/moazelessawey/cudal"
+Issues     = "https://github.com/moazelessawey/cudal/issues"
+
+[tool.setuptools]
+packages = ["cudal"]                     # extras/ is deliberately NOT packaged
+
+[tool.setuptools.package-data]
+cudal = ["logo.png"]
+
+[tool.setuptools.dynamic]
+version = { attr = "cudal.__version__" }
