@@ -26,7 +26,7 @@ jobs:
       - name: Build Tk GUI (Windows)
         shell: pwsh
         run: |
-          pyinstaller --onefile --noconsole --name CuDAL-Tk-windows `
+          pyinstaller --onefile --noconsole --name CuDAL-windows `
           --paths . `
           --collect-all cudal --collect-all scipy --collect-all pandas --collect-all numpy `
           --add-data "assets/logo.png:." `
@@ -82,7 +82,7 @@ jobs:
 
       - name: Build Tk GUI (Linux)
         run: |
-          pyinstaller --onefile --noconsole --name CuDAL-Tk-linux \
+          pyinstaller --onefile --noconsole --name CuDAL-linux \
             --paths . \
             --collect-all cudal --collect-all scipy --collect-all pandas --collect-all numpy \
             --add-data "assets/logo.png:." \
