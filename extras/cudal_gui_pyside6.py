@@ -515,9 +515,190 @@ def _grid_columns(df):
 
     return str(axes[0]), str(axes[1]), str(zcol)
 
+def _is_plan2_table(df):
+    """Detect a Plan 2 acceptance limit table (SE, SM, and >=2 value columns)."""
+    cols = [str(c).lower() for c in df.columns]
+    return 'se' in cols and 'sm' in cols and len(df.columns) >= 4
+
+def _get_plan2_axes_and_z(df):
+    """Return (x_col, y_col, [z_cols]) for Plan 2 tables."""
+    cols = [str(c) for c in df.columns]
+    lower_cols = [c.lower() for c in cols]
+    x_col = cols[lower_cols.index('se')] if 'se' in lower_cols else cols[0]
+    y_col = cols[lower_cols.index('sm')] if 'sm' in lower_cols else cols[1]
+    z_cols = [c for c, lc in zip(cols, lower_cols) 
+              if lc not in ('se', 'sm') and pd.api.types.is_numeric_dtype(df[c])]
+    return x_col, y_col, z_cols
+
+
+def _plan2_eval_columns(df):
+    """Detect a Plan-2 probability-of-passing grid (U x within-SD x between-SD -> P).
+
+    Returns (u_col, se_col, sm_col, p_col) or None.
+    """
+    num = df.select_dtypes(include=[np.number])
+    if num.shape[1] != 4:
+        return None
+    cols = [str(c) for c in num.columns]
+    low = [c.lower() for c in cols]
+
+    def find(*keys):
+        for k in keys:
+            for c, lc in zip(cols, low):
+                if k in lc:
+                    return c
+        return None
+
+    p_col = find("prob", "pass", "psum")
+    se_col = find("within", "sigse") or next((c for c, lc in zip(cols, low) if lc == "se"), None)
+    sm_col = find("between", "sigsm") or next((c for c, lc in zip(cols, low) if lc == "sm"), None)
+    if None in (p_col, se_col, sm_col):
+        return None
+    rest = [c for c in cols if c not in (p_col, se_col, sm_col)]
+    if len(rest) != 1:
+        return None
+    return rest[0], se_col, sm_col, p_col
+
+
+def build_plan2_eval_plot(fig, df, u_col, se_col, sm_col, p_col):
+    """Faceted view of the Plan-2 probability-of-passing surface.
+
+    One panel per between-location SD (SM); inside each panel one spline
+    curve per within-location SD (SE):  P(pass) vs true mean U.
+    Dashed lines mark the usual 80 % / 90 % coverage levels.
+    """
+    work = pd.DataFrame({
+        "u":  pd.to_numeric(df[u_col],  errors="coerce"),
+        "se": pd.to_numeric(df[se_col], errors="coerce"),
+        "sm": pd.to_numeric(df[sm_col], errors="coerce"),
+        "p":  pd.to_numeric(df[p_col],  errors="coerce"),
+    }).dropna()
+
+    if work.empty:
+        fig.text(0.5, 0.5, "Not enough numeric data to plot.", ha="center", va="center")
+        fig.tight_layout()
+        return
+
+    sm_vals = sorted(work["sm"].unique())
+    se_vals = sorted(work["se"].unique())
+    n = len(sm_vals)
+    ncols = min(3, n)
+    nrows = -(-n // ncols)                      # ceil without importing math
+    axes = fig.subplots(nrows, ncols, squeeze=False, sharex=True, sharey=True)
+
+    for i, smv in enumerate(sm_vals):
+        ax = axes[i // ncols][i % ncols]
+        panel = work[work["sm"] == smv]
+        for color, sev in zip(SERIES_COLORS, se_vals):
+            sub = panel[panel["se"] == sev].sort_values("u")
+            xs = sub["u"].to_numpy(dtype=float)
+            ys = sub["p"].to_numpy(dtype=float)
+            if xs.size == 0:
+                continue
+            ax.plot(xs, ys, "o", color=color, ms=3, alpha=0.7)
+            xx, yy = _spline_xy(xs, ys)
+            ax.plot(xx, yy, "-", color=color, lw=1.6, label=f"{se_col} = {sev:g}")
+        for t in (0.8, 0.9):
+            ax.axhline(t, ls="--", lw=0.8, color="0.5")
+        ax.set_title(f"{sm_col} = {smv:g}", fontsize=9)
+        ax.grid(True, alpha=0.3)
+        if i // ncols == nrows - 1:
+            ax.set_xlabel(u_col, fontsize=9)
+        if i % ncols == 0:
+            ax.set_ylabel(p_col, fontsize=9)
+
+    for j in range(n, nrows * ncols):         # hide unused panels
+        axes[j // ncols][j % ncols].set_axis_off()
+
+    handles, labels = axes[0][0].get_legend_handles_labels()
+    if handles:
+        fig.legend(handles, labels, loc="lower center",
+                   ncol=min(len(labels), 4), fontsize=8, frameon=False)
+    fig.suptitle(f"Probability of passing vs {u_col}  (panels: {sm_col}, curves: {se_col})",
+                 fontsize=10)
+    fig.tight_layout(rect=(0, 0.05, 1, 0.95))
+
+def build_results_plot_plan2(fig, df):
+    """Family of curves for Plan 2 tables: LL/UL vs SE, grouped by SM."""
+    x_col, y_col, z_cols = _get_plan2_axes_and_z(df)
+    if not z_cols:
+        fig.text(0.5, 0.5, "Not enough data to plot.", ha="center", va="center")
+        return
+        
+    n_z = len(z_cols)
+    axes = fig.subplots(1, n_z, squeeze=False)
+    
+    for idx, z_col in enumerate(z_cols):
+        ax = axes[0, idx]
+        grouped = df.groupby(y_col, sort=True)
+        for color, (sm_val, sub) in zip(SERIES_COLORS, grouped):
+            xs = sub[x_col].to_numpy(dtype=float)
+            ys = sub[z_col].to_numpy(dtype=float)
+            order = np.argsort(xs)
+            xs, ys = xs[order], ys[order]
+            
+            xx, yy = _spline_xy(xs, ys)
+            ax.plot(xx, yy, "-", color=color, lw=1.6, label=f"{y_col}={sm_val:g}")
+            ax.plot(xs, ys, "o", color=color, ms=3, alpha=0.7)
+            
+        ax.set_xlabel(x_col)
+        ax.set_ylabel(z_col)
+        ax.set_title(f"{z_col} vs {x_col}")
+        ncol = 2 if len(grouped) > 6 else 1
+        ax.legend(fontsize=7, loc="best", ncol=ncol)
+        ax.grid(True, alpha=0.3)
+        
+    fig.tight_layout()
+
+def build_heatmap_plan2(fig, df, z_col, thresholds=(0.8, 0.9)):
+    """Contour-filled heatmap for Plan 2 tables (SE x SM -> Z)."""
+    x_col, y_col, z_cols = _get_plan2_axes_and_z(df)
+    if not z_cols:
+        fig.text(0.5, 0.5, "Not enough data to plot.", ha="center", va="center")
+        return
+    if z_col not in z_cols:
+        z_col = z_cols[0]
+        
+    work = df[[x_col, y_col, z_col]].copy()
+    work = work.apply(pd.to_numeric, errors="coerce").dropna()
+    piv = work.pivot_table(index=y_col, columns=x_col, values=z_col, aggfunc="mean")
+    piv = piv.sort_index(axis=0).sort_index(axis=1)
+    
+    X = piv.columns.to_numpy(dtype=float)
+    Y = piv.index.to_numpy(dtype=float)
+    Z = np.ma.masked_invalid(piv.to_numpy(dtype=float))
+    
+    ax = fig.add_subplot(111)
+    if Z.count() == 0 or X.size < 2 or Y.size < 2:
+        ax.text(0.5, 0.5, "Not enough grid points for a heatmap.", ha="center", va="center")
+        fig.tight_layout()
+        return
+        
+    cs = ax.contourf(X, Y, Z, levels=min(24, max(6, X.size + Y.size)), cmap="viridis")
+    fig.colorbar(cs, ax=ax, label=z_col)
+    
+    if X.size <= 15: ax.set_xticks(X)
+    if Y.size <= 15: ax.set_yticks(Y)
+        
+    if float(Z.max()) <= 1.01 and float(Z.min()) >= -0.01:
+        for i, t in enumerate(thresholds):
+            if float(Z.min()) <= t <= float(Z.max()):
+                ax.contour(X, Y, Z, levels=[t], colors="white", linewidths=1.2)
+                ax.text(0.02, 0.98 - 0.06 * i, f"white line = {t:.0%}",
+                        transform=ax.transAxes, fontsize=8, color="white", va="top")
+                        
+    ax.set_xlabel(x_col)
+    ax.set_ylabel(y_col)
+    ax.set_title(f"{z_col} over {x_col} / {y_col}", fontsize=10)
+    fig.tight_layout()
 
 def build_results_plot(fig, df):
     """Points + spline curves for the results DataFrame."""
+    p2 = _plan2_eval_columns(df)
+    if p2 is not None:
+        build_plan2_eval_plot(fig, df, *p2)
+        return
+
     ax = fig.add_subplot(111)
     num = df.select_dtypes(include=[np.number]).replace([np.inf, -np.inf], np.nan).dropna()
     num = num.copy()
@@ -728,14 +909,29 @@ class PlotDialog(QDialog):
         self.setMinimumSize(520, 380)
         self.setModal(True)
         self._df = df
-        self._can_heat = _grid_columns(df) is not None
+        
+        self._is_plan2 = _is_plan2_table(df)
+        self._can_heat = self._is_plan2 or _grid_columns(df) is not None
 
         lay = QVBoxLayout(self)
         top = QHBoxLayout()
         top.addWidget(QLabel("Plot style:"))
+        
         self.style_cb = QComboBox()
         self.style_cb.addItems(["Lines + spline"] + (["Heatmap (grid)"] if self._can_heat else []))
         top.addWidget(self.style_cb)
+        
+        # Z-axis selector for Plan 2 tables
+        self.z_cb = None
+        if self._is_plan2:
+            _, _, z_cols = _get_plan2_axes_and_z(df)
+            if len(z_cols) > 1:
+                top.addWidget(QLabel("Z-axis:"))
+                self.z_cb = QComboBox()
+                self.z_cb.addItems([str(c) for c in z_cols])
+                top.addWidget(self.z_cb)
+                self.z_cb.currentIndexChanged.connect(self._redraw)
+
         top.addStretch(1)
         save_btn = QPushButton("Save PNG")
         save_btn.clicked.connect(self._save_png)
@@ -756,19 +952,25 @@ class PlotDialog(QDialog):
 
     def _redraw(self):
         self._fig.clear()
-        if self.style_cb.currentText() == "Heatmap (grid)" and self._can_heat:
-            build_heatmap(self._fig, self._df)
+        style = self.style_cb.currentText()
+        if self._is_plan2:
+            if style == "Heatmap (grid)" and self._can_heat:
+                z_col = self.z_cb.currentText() if self.z_cb else None
+                build_heatmap_plan2(self._fig, self._df, z_col)
+            else:
+                build_results_plot_plan2(self._fig, self._df)
         else:
-            build_results_plot(self._fig, self._df)
+            if style == "Heatmap (grid)" and self._can_heat:
+                build_heatmap(self._fig, self._df)
+            else:
+                build_results_plot(self._fig, self._df)
         self._canvas.draw()
 
     def _save_png(self):
-        path, _ = QFileDialog.getSaveFileName(self, "Save figure", "results.png",
-                                              "PNG image (*.png)")
+        path, _ = QFileDialog.getSaveFileName(self, "Save figure", "results.png", "PNG image (*.png)")
         if path:
             self._fig.savefig(path, dpi=150)
             QMessageBox.information(self, "Saved", f"Figure saved to {path}")
-
 
 # ---------------------------------------------------------------------------
 # Results panel
@@ -785,20 +987,30 @@ class ResultsPanel(QFrame):
         toolbar = QHBoxLayout()
         title = QLabel("Results")
         title.setObjectName("section")
+        
         self.row_count = QLabel("")
         self.row_count.setObjectName("muted")
+        
         self.plot_btn = QPushButton("Plot")
         self.plot_btn.setObjectName("outline")
         self.plot_btn.setEnabled(False)
+        
         self.export_btn = QPushButton("Export CSV")
         self.export_btn.setEnabled(False)
+        
         self.pdf_btn = QPushButton("Export PDF")
         self.pdf_btn.setEnabled(False)
+
+        self.oc_btn = QPushButton("OC Curve")
+        # self.oc_btn.setObjectName("outline")
+        self.oc_btn.setEnabled(False)
+        self.oc_btn.setToolTip("OC curve: computed plan vs USP <905> (CU tabs)")
 
         toolbar.addWidget(title)
         toolbar.addStretch(1)
         toolbar.addWidget(self.row_count)
         toolbar.addWidget(self.plot_btn)
+        toolbar.addWidget(self.oc_btn)
         toolbar.addWidget(self.export_btn)
         toolbar.addWidget(self.pdf_btn)
         lay.addLayout(toolbar)
@@ -1049,6 +1261,7 @@ class BaseTab(QWidget):
         # --- right: results -----------------------------------------------------
         self.results = ResultsPanel()
         body.addWidget(self.results, 1)
+        self.results.oc_btn.clicked.connect(self._show_oc)
 
         self.run_btn.clicked.connect(self._on_run)
         self.reset_btn.clicked.connect(self._reset_defaults)
@@ -1147,11 +1360,15 @@ class BaseTab(QWidget):
         self.progress.setValue(100)
         if isinstance(result, pd.DataFrame):
             self.results.show_dataframe(result)
+
             self.status_label.setText(f"Done -- {len(result)} row(s) computed.")
         else:
             self.results.show_dict(result)
             self.status_label.setText("Done.")
         self.results.report_meta = self._report_meta()
+
+        # in _on_done, after showing the results:
+        self.results.oc_btn.setEnabled(self._oc_available())
 
     def _on_fail(self, tb):
         self.progress.setValue(0)
@@ -1207,6 +1424,23 @@ class BaseTab(QWidget):
             lines.append(f"MODE: {dict(self.MODES)[self._current_mode()].upper()}")
         return {"title": lines}
 
+    # new methods:
+    def _oc_available(self):
+        return False
+
+    def _oc_context(self):
+        return None
+
+    def _show_oc(self):
+        if not HAVE_MPL:
+            QMessageBox.critical(self, "Plot unavailable", "matplotlib is required.\npip install matplotlib")
+            return
+        ctx = self._oc_context()
+        if ctx is None:
+            QMessageBox.information(self, "OC curve", "Not available for this scenario.")
+            return
+        OCDialog(ctx, self).exec()
+
 
 def make_grid(low: float, high: float, step: float, name: str):
     if step <= 0:
@@ -1224,6 +1458,7 @@ class Cusp1Tab(BaseTab):
     def __init__(self, parent=None):
         super().__init__("Content Uniformity -- Sampling Plan 1",
                          "Single composite sample (USP <905>).", parent)
+        self._last_table = None
 
     def _build_mode_frames(self):
         self.table_fields = build_form(self.mode_frames["table"].layout(), [
@@ -1278,6 +1513,7 @@ class Cusp1Tab(BaseTab):
             table = cusp1.acceptance_limit_table(number, target, lbound, cilevel,
                                                  mean_low, mean_high, mean_step)
             self._table_cache[key] = table
+            self._last_table = table
             progress(1.0, "Table complete.")
             return table
         return job
@@ -1300,6 +1536,7 @@ class Cusp1Tab(BaseTab):
                 progress(0.2, "Building acceptance table...")
                 table = cusp1.acceptance_limit_table(number, target, lbound, cilevel)
                 self._table_cache[key] = table
+                self._last_table = table
             else:
                 progress(0.2, "Using cached table...")
             progress(0.6, "Evaluating probability grid...")
@@ -1317,12 +1554,36 @@ class Cusp1Tab(BaseTab):
             return cusp1.sample_probability(mean, cv, number, target, lbound, cilevel)
         return job
 
+    def _oc_available(self): return True
+    def _oc_context(self):
+        v = self.table_fields
+        number = v["number"].get(int); target = v["target"].get(float)
+        lbound = v["lbound"].get(float); cilevel = v["cilevel"].get(float)
+        table = self._last_table if self._last_table is not None else  cusp1.acceptance_limit_table(number, target, lbound, cilevel)
+
+        def computed(xk, xs, fx):
+            if xk == "cv":
+                res = cusp1.probability_of_passing(table, number, [fx["U"]], [float(x) for x in xs])
+            else:
+                res = cusp1.probability_of_passing(table, number, [float(x) for x in xs], [fx["CV"]])
+            return _prob_series(res)
+
+        def make_units(xk, x, fx, rng, reps):
+            U = x if xk == "u" else fx["U"]
+            CV = x if xk == "cv" else fx["CV"]
+            return rng.normal(U, U * CV / 100.0, (reps, 30))
+
+        return make_oc_context("cu", target, computed, make_units,
+            [("cv", "True CV (%)  [U fixed]"), ("u", "True mean U (%)  [CV fixed]")],
+            {"cv": (0.5, 10.0, 0.25), "u": (85.0, 115.0, 1.0)},
+            {"cv": [("U", target)], "u": [("CV", 2.0)]})
 
 class Cusp2Tab(BaseTab):
     def __init__(self, parent=None):
         super().__init__("Content Uniformity -- Sampling Plan 2",
                          "Multiple locations, within/between-location variance components (USP <905>).",
                          parent)
+        self._last_table = None
 
     def _build_mode_frames(self):
         self.table_fields = build_form(self.mode_frames["table"].layout(), [
@@ -1378,6 +1639,7 @@ class Cusp2Tab(BaseTab):
     def _run_table(self):
         num, loc, target, lbound, cilevel, se_vals, sm_vals = self._table_args()
         key = self._cache_key(num, loc, target, lbound, cilevel, se_vals, sm_vals)
+        self._last_table = None
 
         def job(progress):
             hit = self._table_cache.get(key)
@@ -1387,6 +1649,7 @@ class Cusp2Tab(BaseTab):
             progress(0.2, "Computing acceptance table (Plan 2)...")
             table = cusp2.acceptance_limit_table(num, loc, target, lbound, cilevel, se_vals, sm_vals)
             self._table_cache[key] = table
+            self._last_table = table
             progress(1.0, "Table complete.")
             return table
         return job
@@ -1406,7 +1669,9 @@ class Cusp2Tab(BaseTab):
             if table is None:
                 progress(0.2, "Building acceptance table (Plan 2)...")
                 table = cusp2.acceptance_limit_table(num, loc, target, lbound, cilevel, se_vals, sm_vals)
+                self._last_table = table
                 self._table_cache[key] = table
+                self._last_table = table
             else:
                 progress(0.2, "Using cached table...")
             d1 = se_vals[1] - se_vals[0] if len(se_vals) > 1 else 0.1
@@ -1425,10 +1690,36 @@ class Cusp2Tab(BaseTab):
             return cusp2.sample_probability(mean, se, sm, num, loc, target, cilevel)
         return job
 
+    def _oc_available(self): return True
+    def _oc_context(self):
+        v = self.table_fields
+        num, loc = v["num"].get(int), v["loc"].get(int)
+        target = v["target"].get(float); lbound = v["lbound"].get(float); cilevel = v["cilevel"].get(float)
+        se_vals = make_grid(v["se_low"].get(float), v["se_high"].get(float), v["se_step"].get(float), "SE")
+        sm_vals = make_grid(v["sm_low"].get(float), v["sm_high"].get(float), v["sm_step"].get(float), "SM")
+        d1 = se_vals[1] - se_vals[0] if len(se_vals) > 1 else 0.1
+        table = self._last_table if self._last_table is not None else  cusp2.acceptance_limit_table(num, loc, target, lbound, cilevel, se_vals, sm_vals)
+
+        def computed(xk, xs, fx):
+            U = [float(x) for x in xs] if xk == "u" else [fx["U"]]
+            SE = [float(x) for x in xs] if xk == "se" else [fx["SE"]]
+            return _prob_series(cusp2.probability_of_passing(table, num, loc, d1, U, SE, [fx["SM"]]))
+
+        def make_units(xk, x, fx, rng, reps):
+            U = x if xk == "u" else fx["U"]
+            SE = x if xk == "se" else fx["SE"]
+            return U + rng.normal(0.0, fx["SM"], (reps, 1)) + rng.normal(0.0, SE, (reps, 30))
+
+        return make_oc_context("cu", target, computed, make_units,
+            [("se", "True within-loc SD  [U, SM fixed]"), ("u", "True mean U  [SE, SM fixed]")],
+            {"se": (0.5, 10.0, 0.25), "u": (85.0, 115.0, 1.0)},
+            {"se": [("U", target), ("SM", 2.2)], "u": [("SE", 2.2), ("SM", 2.2)]})
+
 
 class Disp1Tab(BaseTab):
     def __init__(self, parent=None):
         super().__init__("Dissolution -- Sampling Plan 1", "Single location (USP <711>).", parent)
+        self._last_table = None
 
     def _build_mode_frames(self):
         self.table_fields = build_form(self.mode_frames["table"].layout(), [
@@ -1476,6 +1767,7 @@ class Disp1Tab(BaseTab):
             progress(0.2, "Computing acceptance table...")
             table = disp1.acceptance_limit_table(number, q, lbound, cilevel, meanadj_step)
             self._table_cache[key] = table
+            self._last_table = table
             progress(1.0, "Table complete.")
             return table
         return job
@@ -1496,6 +1788,7 @@ class Disp1Tab(BaseTab):
                 progress(0.2, "Building acceptance table...")
                 table = disp1.acceptance_limit_table(number, q, lbound, cilevel)
                 self._table_cache[key] = table
+                self._last_table = table
             else:
                 progress(0.2, "Using cached table...")
             progress(0.6, "Evaluating probability grid...")
@@ -1514,11 +1807,37 @@ class Disp1Tab(BaseTab):
         return job
 
 
+    def _oc_available(self): return True
+    def _oc_context(self):
+        v = self.table_fields
+        number = v["number"].get(int); q = v["q"].get(float)
+        lbound = v["lbound"].get(float); cilevel = v["cilevel"].get(float)
+        table = self._last_table if self._last_table is not None else disp1.acceptance_limit_table(number, q, lbound, cilevel)
+
+        def computed(xk, xs, fx):
+            if xk == "cv":
+                res = disp1.probability_of_passing(table, number, [fx["U"]], [float(x) for x in xs])
+            else:
+                res = disp1.probability_of_passing(table, number, [float(x) for x in xs], [fx["CV"]])
+            return _prob_series(res)
+
+        def make_units(xk, x, fx, rng, reps):
+            U = x if xk == "u" else fx["U"]
+            CV = x if xk == "cv" else fx["CV"]
+            return rng.normal(U, U * CV / 100.0, (reps, 24))
+
+        return make_oc_context("disp", q, computed, make_units,
+            [("cv", "True CV (%)  [U fixed]"), ("u", "True mean U (%)  [CV fixed]")],
+            {"cv": (0.5, 25.0, 0.5), "u": (70.0, 120.0, 1.0)},
+            {"cv": [("U", 100.0)], "u": [("CV", 3.0)]})
+
+
 class Disp2Tab(BaseTab):
     def __init__(self, parent=None):
         super().__init__("Dissolution -- Sampling Plan 2",
                          "Multiple locations, within/between-location variance components (USP <711>).",
                          parent)
+        self._last_table = None
 
     def _build_mode_frames(self):
         self.table_fields = build_form(self.mode_frames["table"].layout(), [
@@ -1582,6 +1901,7 @@ class Disp2Tab(BaseTab):
                 return hit
             progress(0.2, "Computing acceptance table (Plan 2)...")
             table = disp2.acceptance_limit_table(num, loc, q, lbound, cilevel, se_vals, sm_vals)
+            self._last_table = table
             self._table_cache[key] = table
             progress(1.0, "Table complete.")
             return table
@@ -1605,6 +1925,7 @@ class Disp2Tab(BaseTab):
                 progress(0.2, "Building acceptance table (Plan 2)...")
                 table = disp2.acceptance_limit_table(num, loc, q, lbound, cilevel, se_vals, sm_vals)
                 self._table_cache[key] = table
+                self._last_table = table
             else:
                 progress(0.2, "Using cached table...")
             progress(0.6, "Evaluating probability grid...")
@@ -1622,6 +1943,234 @@ class Disp2Tab(BaseTab):
             return disp2.sample_probability(mean, se, sm, num, loc, q, cilevel)
         return job
 
+
+    def _oc_available(self): return True
+    def _oc_context(self):
+        v = self.table_fields
+        num, loc = v["num"].get(int), v["loc"].get(int)
+        q = v["q"].get(float); lbound = v["lbound"].get(float); cilevel = v["cilevel"].get(float)
+        se_vals = make_grid(v["se_low"].get(float), v["se_high"].get(float), v["se_step"].get(float), "SE")
+        sm_vals = make_grid(v["sm_low"].get(float), v["sm_high"].get(float), v["sm_step"].get(float), "SM")
+        dse = se_vals[1] - se_vals[0] if len(se_vals) > 1 else 1.0
+        dsm = sm_vals[1] - sm_vals[0] if len(sm_vals) > 1 else 1.0
+        table = self._last_table if self._last_table is not None else  disp2.acceptance_limit_table(num, loc, q, lbound, cilevel, se_vals, sm_vals)
+
+        def computed(xk, xs, fx):
+            U = [float(x) for x in xs] if xk == "u" else [fx["U"]]
+            SE = [float(x) for x in xs] if xk == "se" else [fx["SE"]]
+            return _prob_series(disp2.probability_of_passing(table, num, loc, dse, dsm, U, SE, [fx["SM"]]))
+
+        def make_units(xk, x, fx, rng, reps):
+            U = x if xk == "u" else fx["U"]
+            SE = x if xk == "se" else fx["SE"]
+            return U + rng.normal(0.0, fx["SM"], (reps, 1)) + rng.normal(0.0, SE, (reps, 24))
+
+        return make_oc_context("disp", q, computed, make_units,
+            [("se", "True within-loc SD  [U, SM fixed]"), ("u", "True mean U  [SE, SM fixed]")],
+            {"se": (0.5, 25.0, 0.5), "u": (70.0, 120.0, 2.0)},
+            {"se": [("U", 100.0), ("SM", 2.2)], "u": [("SE", 2.2), ("SM", 2.2)]})
+
+# ---------------------------------------------------------------------------
+# OC-curve engine (unified): Monte-Carlo probability of passing the
+# compendial test itself -- USP <905> (2 stages) or USP <711> (3 stages).
+# ---------------------------------------------------------------------------
+def _oc_cu_pass(units: np.ndarray, target: float) -> float:
+    """Two-stage USP <905> decision. units: (reps, 30) -> P(pass)."""
+    """
+    This checks for an absolute shift of 25.0 units rather than 25% of $M$.
+     - If $M = 98.5$, the lower bound should be $73.875$ ($98.5 \times 0.75$), meaning a deviation of at most $24.625$.
+     - code allows a deviation up to $25.0$ (down to $73.5$), falsely passing extreme outliers.
+     - If $M = 101.5$, the upper bound should be $126.875$, meaning a deviation up to $25.375$.
+     - code caps it strictly at $25.0$ ($126.5$), falsely failing valid units.
+    """
+    passed = np.zeros(units.shape[0], dtype=bool)
+    hi = target if target > 101.5 else 101.5
+
+    def M(m):
+        return np.where(m <= 100.0, np.maximum(98.5, m), np.minimum(hi, m))
+
+    # --- Stage 1 (10 units) ---
+    x1 = units[:, :10]
+    m1, s1 = x1.mean(axis=1), x1.std(axis=1, ddof=1)
+    
+    p1 = (np.abs(M(m1) - m1) + 2.4 * s1) <= 15.0
+    passed |= p1
+    
+    # --- Stage 2 (30 units) ---
+    live = np.where(~p1)[0]
+    if live.size:
+        x30 = units[live]
+        m2, s2 = x30.mean(axis=1), x30.std(axis=1, ddof=1)
+        M2 = M(m2)
+        
+        av_ok = (np.abs(M2 - m2) + 2.0 * s2) <= 15.0
+        # FIXED: 0.25 * M2 instead of hardcoded 25.0
+        within_ok = np.abs(x30 - M2[:, None]).max(axis=1) <= (0.25 * M2)
+        
+        passed[live[av_ok & within_ok]] = True
+
+    return float(passed.mean())
+
+def _oc_disp_pass(units, q):
+    """Three-stage USP <711> decision. units: (reps, 24) -> P(pass)."""
+    passed = np.zeros(units.shape[0], dtype=bool)
+
+    x6 = units[:, :6]                                   # Stage 1: all >= Q+5
+    p = np.all(x6 >= q + 5.0, axis=1)
+    passed |= p
+    live = np.where(~p)[0]
+
+    if live.size:                                       # Stage 2: 12 units
+        x12 = units[live][:, :12]
+        # FIXED: Changed > to >= for Q-15 boundary
+        p = (x12.mean(axis=1) >= q) & np.all(x12 >= q - 15.0, axis=1)
+        passed[live[p]] = True
+        live = live[~p]
+
+    if live.size:                                       # Stage 3: 24 units
+        x24 = units[live][:, :24]
+        ok_mean = x24.mean(axis=1) >= q
+        # FIXED: Changed <= to < to match "less than Q-15%"
+        n_l15 = (x24 < q - 15.0).sum(axis=1)
+        # FIXED: Changed <= to < to match "less than Q-25%"
+        any_l25 = (x24 < q - 25.0).any(axis=1)
+        
+        p = ok_mean & (n_l15 <= 2) & ~any_l25
+        passed[live[p]] = True
+
+    return float(passed.mean())
+
+
+def _prob_series(df):
+    for c in df.columns:
+        if any(s in str(c).lower() for s in ("prob", "pass", "ptrap")):
+            return pd.to_numeric(df[c], errors="coerce").to_numpy(dtype=float)
+    return pd.to_numeric(df.iloc[:, -1], errors="coerce").to_numpy(dtype=float)
+
+
+def make_oc_context(test, ref, computed, make_units, x_choices, grid, fixed_specs):
+    """Single factory for every tab's OC context.
+
+    test       : "cu"  -> USP <905> two-stage decision,  ref = target
+                 "disp"-> USP <711> three-stage decision, ref = Q
+    computed   : fn(xk, xs, fx) -> analytic P(pass table)   (per-tab)
+    make_units : fn(xk, x, fx, rng, reps) -> (reps, n_units) simulated units
+    """
+    decision = _oc_cu_pass if test == "cu" else _oc_disp_pass
+
+    def usp(xk, xs, fx, reps):
+        out = []
+        for x in xs:
+            rng = np.random.default_rng(12345)          # seeded -> reproducible
+            out.append(decision(make_units(xk, float(x), fx, rng, reps), ref))
+        return np.array(out)
+
+    return {"test": test, "x_choices": x_choices, "grid": grid,
+            "fixed_specs": fixed_specs, "computed": computed, "usp": usp}
+
+
+class OCDialog(QDialog):
+    """OC curve: computed acceptance-limit plan vs the USP <905> test itself."""
+
+    def __init__(self, ctx, parent=None):
+        super().__init__(parent)
+        self._ctx = ctx
+        self._usp_label = ("USP <905> two-stage test (Monte Carlo)" if ctx["test"] == "cu"
+                           else "USP <711> three-stage test (Monte Carlo)")
+        self._title = "OC Curve -- computed plan vs " + ("USP <905>" if ctx["test"] == "cu" else "USP <711>")
+        self.setWindowTitle(self._title)
+        self.resize(900, 640)
+        self.setModal(True)
+
+        lay = QVBoxLayout(self)
+        top = QGridLayout()
+        top.addWidget(QLabel("X axis:"), 0, 0)
+        self.x_cb = QComboBox()
+        for key, label in ctx["x_choices"]:
+            self.x_cb.addItem(label, key)
+        top.addWidget(self.x_cb, 0, 1)
+        top.addWidget(QLabel("low/high/step:"), 0, 2)
+        self.g_lo, self.g_hi, self.g_st = (QLineEdit() for _ in range(3))
+        for w in (self.g_lo, self.g_hi, self.g_st):
+            w.setFixedWidth(70)
+        row = QHBoxLayout()
+        row.addWidget(self.g_lo); row.addWidget(self.g_hi); row.addWidget(self.g_st)
+        top.addLayout(row, 0, 3)
+        top.addWidget(QLabel("MC reps:"), 0, 4)
+        self.rep_ed = QLineEdit("2000"); self.rep_ed.setFixedWidth(70)
+        top.addWidget(self.rep_ed, 0, 5)
+
+        self.fixed_box = QWidget()
+        self.fixed_layout = QHBoxLayout(self.fixed_box)
+        self.fixed_layout.setContentsMargins(0, 0, 0, 0)
+        redraw = QPushButton("Redraw"); redraw.setObjectName("accent")
+        redraw.clicked.connect(self._redraw)
+        save = QPushButton("Save PNG"); save.clicked.connect(self._save_png)
+        close = QPushButton("Close"); close.clicked.connect(self.accept)
+        wrap = QHBoxLayout()
+        wrap.addWidget(self.fixed_box, 1)
+        wrap.addWidget(redraw); wrap.addWidget(save); wrap.addWidget(close)
+        top.addLayout(wrap, 1, 0, 1, 6)
+        lay.addLayout(top)
+
+        self._fig = Figure(dpi=100)
+        self._canvas = FigureCanvas(self._fig)
+        lay.addWidget(NavigationToolbar(self._canvas, self))
+        lay.addWidget(self._canvas, 1)
+
+        self.x_cb.currentIndexChanged.connect(lambda _i: (self._build_fixed(), self._redraw()))
+        self._build_fixed()
+        self._redraw()
+
+    def _build_fixed(self):
+        while self.fixed_layout.count():
+            it = self.fixed_layout.takeAt(0)
+            if it.widget():
+                it.widget().deleteLater()
+        self._fixed_edits = {}
+        xk = self.x_cb.currentData()
+        lbl = QLabel("Fixed:")
+        self.fixed_layout.addWidget(lbl)
+        for name, d in self._ctx["fixed_specs"][xk]:
+            self.fixed_layout.addWidget(QLabel(f"{name} ="))
+            ed = QLineEdit(str(d)); ed.setFixedWidth(70)
+            self.fixed_layout.addWidget(ed)
+            self._fixed_edits[name] = ed
+        lo, hi, st = self._ctx["grid"][xk]
+        self.g_lo.setText(str(lo)); self.g_hi.setText(str(hi)); self.g_st.setText(str(st))
+
+    def _inputs(self):
+        xk = self.x_cb.currentData()
+        lo, hi, st = (float(w.text()) for w in (self.g_lo, self.g_hi, self.g_st))
+        xs = np.arange(lo, hi + st / 2.0, st)
+        fx = {n: float(w.text()) for n, w in self._fixed_edits.items()}
+        reps = max(200, int(self.rep_ed.text() or 2000))
+        return xk, xs, fx, reps
+
+    def _redraw(self):
+        xk, xs, fx, reps = self._inputs()
+        p_comp = self._ctx["computed"](xk, xs, fx)
+        p_usp = self._ctx["usp"](xk, xs, fx, reps)
+        self._fig.clear()
+        ax = self._fig.add_subplot(111)
+        ax.plot(xs, p_comp, "o-", color=SERIES_COLORS[0], lw=1.8, ms=4, label="Computed plan (acceptance-limit table)")
+        ax.plot(xs, p_usp, "s--", color=SERIES_COLORS[2], lw=1.8, ms=4, label=self._usp_label)
+        for t in (0.8, 0.9):
+            ax.axhline(t, ls=":", lw=0.8, color="0.5")
+        ax.set_ylim(0.0, 1.05)
+        ax.set_xlabel(self.x_cb.currentText())
+        ax.set_ylabel("Probability of passing")
+        ax.set_title(self._title)
+        ax.legend(fontsize=9, loc="best")
+        ax.grid(True, alpha=0.3)
+        self._fig.tight_layout()
+        self._canvas.draw()
+
+    def _save_png(self):
+        path, _ = QFileDialog.getSaveFileName(self, "Save figure", "oc_curve.png", "PNG image (*.png)")
+        if path:
+            self._fig.savefig(path, dpi=150)
+            QMessageBox.information(self, "Saved", f"Figure saved to {path}")
 
 # ---------------------------------------------------------------------------
 # Main window
