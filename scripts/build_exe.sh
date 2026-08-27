@@ -4,8 +4,11 @@ set -euo pipefail
 uv pip install --system .[all,qt] pyinstaller || pip install .[all,qt] pyinstaller
 
 pyinstaller --onefile --noconsole --name CuDAL \
+  --paths . \
+  --collect-all cudal --collect-all scipy --collect-all pandas --collect-all numpy \
   --add-data "assets/logo.png:." \
   --hidden-import matplotlib.backends.backend_tkagg \
+  --hidden-import=PIL._tkinter_finder --hidden-import=PIL._imagingtk \
   cudal_gui.py
 
 pyinstaller --onefile --noconsole --name CuDAL-Qt \
