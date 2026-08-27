@@ -1629,7 +1629,7 @@ class Disp2Tab(BaseTab):
 class CudalApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("CuDAL -- Content Uniformity & Dissolution Acceptance Limits")
+        self.setWindowTitle("PyCuDAL -- Content Uniformity & Dissolution Acceptance Limits")
         self.resize(1180, 720)
         self.setMinimumSize(980, 600)
 
@@ -1652,12 +1652,14 @@ class CudalApp(QMainWindow):
                 logo_lbl.setPixmap(pix.scaledToHeight(
                     40, Qt.TransformationMode.SmoothTransformation))
                 header.addWidget(logo_lbl)
-        t = QLabel("CuDAL")
-        t.setObjectName("header")
+        else:
+            t = QLabel("CuDAL")
+            t.setObjectName("header")
         s = QLabel("   Parametric acceptance limits for USP <905> Content Uniformity "
                    "and USP <711> Dissolution")
         s.setObjectName("subheader")
-        header.addWidget(t)
+        if not logo_file:
+            header.addWidget(t)
         header.addWidget(s)
         header.addStretch(1)
         outer.addLayout(header)
