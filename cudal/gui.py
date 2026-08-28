@@ -38,58 +38,32 @@ from __future__ import annotations
 
 import csv
 import json
-import os
 import math
+import os
 import queue
 import sys
 import threading
+import time
 import traceback
+import webbrowser
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
-from tkinter import font as tkfont
 
-import numpy as np
-import pandas as pd
+# Heavy / optional dependencies are imported in stages by _load_libraries()
+# so the splash screen can show genuine loading progress.
+np = pd = None
+cusp1 = cusp2 = disp1 = disp2 = None
+Figure = FigureCanvasTkAgg = NavigationToolbar2Tk = None
+make_interp_spline = None
+rl_canvas = letter = landscape = None
+HAVE_CUDAL = HAVE_MPL = HAVE_SPLINE = HAVE_XLSX = HAVE_PDF = False
 
-# ---------------------------------------------------------------------------
-# Optional dependencies (the app degrades gracefully without them)
-# ---------------------------------------------------------------------------
-try:
-    from cudal import cusp1, cusp2, disp1, disp2
-    HAVE_CUDAL = True
-except Exception:  # pragma: no cover
-    HAVE_CUDAL = False
-
-try:
-    from matplotlib.figure import Figure
-    from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
-    HAVE_MPL = True
-except Exception:  # pragma: no cover
-    HAVE_MPL = False
-
-try:
-    from scipy.interpolate import make_interp_spline
-    HAVE_SPLINE = True
-except Exception:  # pragma: no cover
-    HAVE_SPLINE = False
-
-try:
-    import openpyxl  # noqa: F401  (Excel export)
-    HAVE_XLSX = True
-except Exception:  # pragma: no cover
-    HAVE_XLSX = False
-
-try:
-    from reportlab.pdfgen import canvas as rl_canvas
-    from reportlab.lib.pagesizes import letter, landscape
-    HAVE_PDF = True
-except Exception:  # pragma: no cover - reportlab is optional
-    HAVE_PDF = False
+REPO_URL = "https://github.com/moazelessawey/pycudal"
 
 # ---------------------------------------------------------------------------
 # Visual style / constants
 # ---------------------------------------------------------------------------
-VERSION = "1.3.0"
+VERSION = "1.0.7"
 
 BG = "#eef1f7"
 PANEL_BG = "#ffffff"
@@ -2318,6 +2292,141 @@ class Disp2Tab(BaseTab):
             {"se": (0.5, 15.0, 0.25), "u": (80.0, 120.0, 1.0)},
             {"se": [("U", 100.0), ("SM", 2.2)], "u": [("SE", 2.2), ("SM", 2.2)]})
 
+
+class SplashScreen:
+    """Borderless startup splash: logo, note, progress bar, developer footer."""
+
+    W, H = 620, 400
+    BG, ACCENT = "#0d2b55", "#4da3ff"
+
+    def __init__(self):
+        self.root = tk.Tk()
+        self.root.overrideredirect(True)
+        self.root.configure(bg=self.BG)
+        self.root.geometry(f"{self.W}x{self.H}"
+                           f"+{(self.root.winfo_screenwidth() - self.W) // 2}"
+                           f"+{(self.root.winfo_screenheight() - self.H) // 2}")
+
+        ttk.Style(self.root).configure(
+            "Splash.Horizontal.TProgressbar",
+            troughcolor="#123a6e", background=self.ACCENT,
+            borderwidth=0, thickness=10)
+
+        inner = tk.Frame(self.root, bg=self.BG)
+        inner.pack(fill="both", expand=True, padx=30, pady=20)
+
+        # ---- footer first (stays at the bottom) ----
+        foot = tk.Frame(inner, bg=self.BG)
+        foot.pack(side="bottom", fill="x")
+        tk.Frame(foot, bg="#1e4a86", height=1).pack(fill="x", pady=(0, 8))
+        row = tk.Frame(foot, bg=self.BG)
+        row.pack()
+        tk.Label(row, text="Program developed by: ", bg=self.BG, fg="#bcd4f5",
+                 font=("Segoe UI", 9)).pack(side="left")
+        link = tk.Label(row, text="Moaz El-Essawey", bg=self.BG, fg=self.ACCENT,
+                        font=("Segoe UI", 9, "underline"), cursor="hand2")
+        link.pack(side="left")
+        link.bind("<Button-1>", lambda _e: webbrowser.open(REPO_URL))
+
+        # ---- logo / title / note ----
+        logo_file = resource_path("logo.png")
+        if os.path.exists(logo_file):
+            try:
+                img = tk.PhotoImage(file=logo_file)
+                if img.height() > 96:
+                    img = img.subsample(max(1, img.height() // 96))
+                self._logo = img                      # keep a reference
+                tk.Label(inner, image=img, bg=self.BG).pack(pady=(6, 4))
+            except tk.TclError:
+                pass
+        tk.Label(inner, text="PyCuDAL", bg=self.BG, fg="white",
+                 font=("Segoe UI", 26, "bold")).pack()
+        tk.Label(inner, bg=self.BG, fg="#bcd4f5", font=("Segoe UI", 10),
+                 justify="center",
+                 text="Parametric acceptance limits for USP <905> Content\n"
+                      "Uniformity and USP <711> Dissolution").pack(pady=(2, 16))
+
+        self.bar = ttk.Progressbar(inner, style="Splash.Horizontal.TProgressbar",
+                                   mode="determinate", maximum=100, length=440)
+        self.bar.pack(pady=(0, 8))
+        self.status = tk.Label(inner, text="Starting…", bg=self.BG,
+                               fg="#9fc3f2", font=("Segoe UI", 9))
+        self.status.pack()
+
+    def set_progress(self, frac, msg):
+        self.bar["value"] = frac * 100
+        self.status.config(text=msg)
+        self.root.update()
+        time.sleep(0.08)          # small pacing so the splash is perceptible
+
+    def close(self):
+        try:
+            self.root.destroy()
+        except tk.TclError:
+            pass
+
+
+def _load_libraries(splash=None):
+    """Import heavy/optional deps in stages, reporting progress to the splash."""
+    global np, pd, cusp1, cusp2, disp1, disp2
+    global Figure, FigureCanvasTkAgg, NavigationToolbar2Tk, make_interp_spline
+    global rl_canvas, letter, landscape
+    global HAVE_CUDAL, HAVE_MPL, HAVE_SPLINE, HAVE_XLSX, HAVE_PDF
+
+    def step(frac, msg):
+        if splash is not None:
+            splash.set_progress(frac, msg)
+
+    step(0.05, "Loading NumPy…")
+    import numpy as _np
+    np = _np
+
+    step(0.20, "Loading Pandas…")
+    import pandas as _pd
+    pd = _pd
+
+    step(0.40, "Loading CuDAL core…")
+    try:
+        from cudal import cusp1 as _a, cusp2 as _b, disp1 as _c, disp2 as _d
+        cusp1, cusp2, disp1, disp2 = _a, _b, _c, _d
+        HAVE_CUDAL = True
+    except Exception:
+        HAVE_CUDAL = False
+
+    step(0.60, "Loading SciPy…")
+    try:
+        from scipy.interpolate import make_interp_spline as _mis
+        make_interp_spline = _mis
+        HAVE_SPLINE = True
+    except Exception:
+        HAVE_SPLINE = False
+
+    step(0.75, "Loading Matplotlib…")
+    try:
+        from matplotlib.figure import Figure as _F
+        from matplotlib.backends.backend_tkagg import (
+            FigureCanvasTkAgg as _C, NavigationToolbar2Tk as _T)
+        Figure, FigureCanvasTkAgg, NavigationToolbar2Tk = _F, _C, _T
+        HAVE_MPL = True
+    except Exception:
+        HAVE_MPL = False
+
+    step(0.90, "Loading export engines…")
+    try:
+        import openpyxl  # noqa: F401
+        HAVE_XLSX = True
+    except Exception:
+        HAVE_XLSX = False
+    try:
+        from reportlab.pdfgen import canvas as _rc
+        from reportlab.lib.pagesizes import letter as _lt, landscape as _ls
+        rl_canvas, letter, landscape = _rc, _lt, _ls
+        HAVE_PDF = True
+    except Exception:
+        HAVE_PDF = False
+
+    step(1.0, "Ready.")
+
 # ---------------------------------------------------------------------------
 # Main application window
 # ---------------------------------------------------------------------------
@@ -2495,31 +2604,34 @@ def run_selftest():
     assert len(xx) == len(yy) == 300
     print("selftest OK")
 
-
 def main():
     if "--selftest" in sys.argv:
+        _load_libraries(None)
         run_selftest()
         return
 
-    try:  # Windows: render at native DPI (sharper fonts)
+    try:  # Windows DPI awareness before any window is created
         from ctypes import windll
         windll.shcore.SetProcessDpiAwareness(1)
     except Exception:
         pass
 
+    splash = SplashScreen()
+    _load_libraries(splash)
+
     if not HAVE_CUDAL:
-        root = tk.Tk()
-        root.withdraw()
+        splash.close()
+        root = tk.Tk(); root.withdraw()
         messagebox.showerror(
             "Missing dependency",
             "The `cudal` package could not be imported.\n"
-            "Put cudal_gui.py next to the `cudal` package folder\n"
+            "Put this script next to the `cudal` package folder\n"
             "or install it, then restart the GUI.")
         sys.exit(1)
 
+    splash.close()
     app = CudalApp()
     app.mainloop()
-
 
 if __name__ == "__main__":
     main()

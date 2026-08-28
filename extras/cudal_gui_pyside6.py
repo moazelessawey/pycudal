@@ -31,9 +31,6 @@ import os
 import sys
 import traceback
 
-import numpy as np
-import pandas as pd
-
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QTabWidget, QWidget, QDialog,
     QVBoxLayout, QHBoxLayout, QGridLayout, QGroupBox, QLabel, QLineEdit,
@@ -46,35 +43,6 @@ from PySide6.QtGui import (
     QAction, QIcon, QColor, QBrush, QPixmap, QFont, QFontDatabase, QKeySequence, QShortcut
 )
 
-# ---------------------------------------------------------------------------
-# Optional dependencies
-# ---------------------------------------------------------------------------
-try:
-    from cudal import cusp1, cusp2, disp1, disp2
-    HAVE_CUDAL = True
-except Exception:  # pragma: no cover
-    HAVE_CUDAL = False
-
-try:
-    from matplotlib.figure import Figure
-    from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
-    from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
-    HAVE_MPL = True
-except Exception:  # pragma: no cover
-    HAVE_MPL = False
-
-try:
-    from scipy.interpolate import make_interp_spline
-    HAVE_SPLINE = True
-except Exception:  # pragma: no cover
-    HAVE_SPLINE = False
-
-try:
-    import openpyxl  # noqa: F401
-    HAVE_XLSX = True
-except Exception:  # pragma: no cover
-    HAVE_XLSX = False
-
 try:
     from reportlab.pdfgen import canvas as rl_canvas
     from reportlab.lib.pagesizes import letter, landscape
@@ -82,10 +50,21 @@ try:
 except Exception:  # pragma: no cover
     HAVE_PDF = False
 
+import time
+
+# Heavy / optional dependencies load in stages after the splash appears.
+np = pd = None
+cusp1 = cusp2 = disp1 = disp2 = None
+Figure = FigureCanvas = NavigationToolbar = None
+make_interp_spline = None
+HAVE_CUDAL = HAVE_MPL = HAVE_SPLINE = HAVE_XLSX = False
+
+REPO_URL = "https://github.com/moazelessawey/pycudal"
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-VERSION = "2.1.0 (PySide6, modern UI)"
+VERSION = "1.0.7 (PySide6, modern UI)"
 
 BG = "#f4f6f9"
 PANEL_BG = "#ffffff"
@@ -2172,6 +2151,124 @@ class OCDialog(QDialog):
             self._fig.savefig(path, dpi=150)
             QMessageBox.information(self, "Saved", f"Figure saved to {path}")
 
+
+class SplashScreen(QDialog):
+    """Frameless startup splash: logo, note, progress bar, developer footer."""
+
+    def __init__(self):
+        super().__init__(None,
+                         Qt.WindowType.FramelessWindowHint |
+                         Qt.WindowType.WindowStaysOnTopHint)
+        self.setFixedSize(620, 400)
+        self.setStyleSheet("""
+            QDialog      { background:#0d2b55; }
+            QLabel       { background:transparent; }
+            #title { color:white; font-size:26px; font-weight:700; }
+            #note  { color:#bcd4f5; font-size:10pt; }
+            #status{ color:#9fc3f2; font-size:9pt; }
+            #foot  { color:#bcd4f5; font-size:9pt; }
+            #foot a{ color:#4da3ff; }
+            QProgressBar { background:#123a6e; border:0; border-radius:5px;
+                           height:10px; }
+            QProgressBar::chunk { background:#4da3ff; border-radius:5px; }
+        """)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(30, 22, 30, 14)
+        center = Qt.AlignmentFlag.AlignCenter
+
+        logo_file = resource_path("logo.png")
+        if os.path.exists(logo_file):
+            pix = QPixmap(logo_file)
+            if not pix.isNull():
+                if pix.height() > 96:
+                    pix = pix.scaledToHeight(96, Qt.TransformationMode.SmoothTransformation)
+                ll = QLabel(); ll.setPixmap(pix); ll.setAlignment(center)
+                lay.addWidget(ll)
+
+        t = QLabel("PyCuDAL"); t.setObjectName("title"); t.setAlignment(center)
+        lay.addWidget(t)
+        n = QLabel("Parametric acceptance limits for USP <905> Content\n"
+                   "Uniformity and USP <711> Dissolution")
+        n.setObjectName("note"); n.setAlignment(center)
+        lay.addWidget(n)
+        lay.addSpacing(14)
+
+        self.bar = QProgressBar(); self.bar.setRange(0, 100)
+        lay.addWidget(self.bar)
+        self.status = QLabel("Starting…"); self.status.setObjectName("status")
+        self.status.setAlignment(center)
+        lay.addWidget(self.status)
+        lay.addStretch(1)
+
+        foot = QLabel('Program developed by: '
+                      f'<a href="{REPO_URL}">Moaz El-Essawey</a>')
+        foot.setObjectName("foot")
+        foot.setOpenExternalLinks(True)          # click opens the GitHub repo
+        foot.setAlignment(center)
+        lay.addWidget(foot)
+
+        geo = QApplication.primaryScreen().availableGeometry()
+        self.move(geo.center() - self.rect().center())
+
+    def set_progress(self, frac, msg):
+        self.bar.setValue(int(frac * 100))
+        self.status.setText(msg)
+        QApplication.processEvents()
+        time.sleep(0.08)
+
+
+def _load_libraries(splash=None):
+    global np, pd, cusp1, cusp2, disp1, disp2
+    global Figure, FigureCanvas, NavigationToolbar, make_interp_spline
+    global HAVE_CUDAL, HAVE_MPL, HAVE_SPLINE, HAVE_XLSX
+
+    def step(frac, msg):
+        if splash is not None:
+            splash.set_progress(frac, msg)
+
+    step(0.05, "Loading NumPy…")
+    import numpy as _np
+    np = _np
+
+    step(0.20, "Loading Pandas…")
+    import pandas as _pd
+    pd = _pd
+
+    step(0.40, "Loading CuDAL core…")
+    try:
+        from cudal import cusp1 as _a, cusp2 as _b, disp1 as _c, disp2 as _d
+        cusp1, cusp2, disp1, disp2 = _a, _b, _c, _d
+        HAVE_CUDAL = True
+    except Exception:
+        HAVE_CUDAL = False
+
+    step(0.60, "Loading SciPy…")
+    try:
+        from scipy.interpolate import make_interp_spline as _mis
+        make_interp_spline = _mis
+        HAVE_SPLINE = True
+    except Exception:
+        HAVE_SPLINE = False
+
+    step(0.75, "Loading Matplotlib…")
+    try:
+        from matplotlib.figure import Figure as _F
+        from matplotlib.backends.backend_qtagg import (
+            FigureCanvasQTAgg as _C, NavigationToolbar2QT as _T)
+        Figure, FigureCanvas, NavigationToolbar = _F, _C, _T
+        HAVE_MPL = True
+    except Exception:
+        HAVE_MPL = False
+
+    step(0.90, "Loading export engines…")
+    try:
+        import openpyxl  # noqa: F401
+        HAVE_XLSX = True
+    except Exception:
+        HAVE_XLSX = False
+
+    step(1.0, "Ready.")
+
 # ---------------------------------------------------------------------------
 # Main window
 # ---------------------------------------------------------------------------
@@ -2350,13 +2447,20 @@ def run_selftest():
 
 def main():
     if "--selftest" in sys.argv:
+        _load_libraries(None)
         run_selftest()
         return
 
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
 
+    splash = SplashScreen()
+    splash.show()
+    app.processEvents()
+    _load_libraries(splash)
+
     if not HAVE_CUDAL:
+        splash.close()
         QMessageBox.critical(
             None, "Missing dependency",
             "The `cudal` package could not be imported.\n"
@@ -2364,14 +2468,11 @@ def main():
             "or install it, then restart the GUI.")
         sys.exit(1)
 
-    # bundled fonts (Windows AND Linux via Qt font database)
     family = _register_local_fonts()
     if not family:
         family = "Segoe UI" if sys.platform.startswith("win") else "DejaVu Sans"
     app.setFont(QFont(family, 10))
     app.setStyleSheet(build_stylesheet(family))
-
-    # let matplotlib use the bundled font too
     if HAVE_MPL:
         try:
             fdir = resource_path("fonts")
@@ -2387,8 +2488,8 @@ def main():
 
     win = CudalApp()
     win.show()
+    splash.close()
     sys.exit(app.exec())
-
 
 if __name__ == "__main__":
     main()

@@ -17,5 +17,5 @@ disp2  : Dissolution, Sampling Plan 2 (multiple locations)
 
 from . import core, cusp1, cusp2, disp1, disp2
 
-__version__ = "1.0.4"
+__version__ = "1.0.7"
 __all__ = ["core", "cusp1", "cusp2", "disp1", "disp2"]
