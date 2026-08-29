@@ -124,7 +124,10 @@ def acceptance_limit_table(
         ulu = mean + z * se_of_mean
         return content_uniformity_bound(ulu, sigma, target) - target_prob
 
-    meanl, meanl_found, meanu, meanu_found = batched_two_sided_bounds(func_lower, func_upper, lo, hi)
+    # Bump scan_points/bisect_iters to avoid crossing of overbd_of_sd(sd)
+    meanl, meanl_found, meanu, meanu_found = batched_two_sided_bounds(
+        func_lower, func_upper, lo, hi, scan_points=200, bisect_iters=30,
+    )
 
     ok = meanl_found & meanu_found & (meanu > meanl)
     meanl_out = np.where(ok, meanl, np.nan)
