@@ -2,12 +2,9 @@
 ## Users Guide
 
 **Written by Moaz El‑Essawey**
-<!-- TODO: adjust the publication date -->
 **29 August 2026** · Version 1.0.8
 
-*Screenshots in this guide are from the **PySide6** edition of the GUI; the
-Tkinter edition (`cudal-gui`) provides the same workflow and screens (it omits
-the splash‑screen toolbar and the OC‑curve dialog).*
+*Screenshots in this guide are from the **PySide6** edition of the GUI*
 
 ---
 
@@ -398,8 +395,7 @@ $$\chi^2_{err} = F^{-1}_{\chi^2}\!\big(1-\sqrt{C/100};\; L(n-1)\big),
 $$h_1 = \frac{L-1}{\chi^2_{loc}} - 1, \qquad
 h_2 = \frac{L(n-1)}{\chi^2_{err}} - 1$$
 
-$$\mathrm{VAR} = \left(s_m^2 + \left(1-\tfrac{1}{n}\right)s_e^2\right)
-+ \sqrt{\big(h_1 s_m^2\big)^2 + \left(\left(1-\tfrac{1}{n}\right)h_2 s_e^2\right)^2}$$
+$$\mathrm{VAR} = \left(s_m^2 + \left(1-\tfrac{1}{n}\right)s_e^2\right) + \sqrt{\left(h_1 s_m^2\right)^2 + \left(\left(1-\tfrac{1}{n}\right)h_2 s_e^2\right)^2}$$
 
 $$\mathrm{MVAR} = \frac{(L-1)\,n\,s_m^2}{\chi^2_{loc}}$$
 
@@ -418,11 +414,3 @@ z = \Phi^{-1}\!\left(\sqrt{C/100}\right) \;\; \text{(dissolution, one-sided)}$$
 and compare against the Python results; the published SAS reference values
 quoted above (0.98003, 0.98750, 0.99824, 1, and the LL/UL matrices) must be
 reproduced by both implementations.
-
-## Appendix D — Screenshot checklist (to be added)
-
-`images/splash.png`, `images/main_window.png`, `images/tab_layout.png`,
-`images/results.png`, `images/cu_plan1_table.png`, `images/cu_plan1_sample.png`,
-`images/cu_plan2_table.png`, `images/disp_plan1_table.png`,
-`images/disp_plan2_table.png`, `images/plot_lines.png`,
-`images/plot_heatmap.png`, `images/oc_curve.png`.
