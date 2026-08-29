@@ -29,7 +29,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from .core import probit, cinv, probnorm, probchi, content_uniformity_bound, batched_root_find
+from .core import batched_root_find, cinv, content_uniformity_bound, probchi, probit, probnorm
 
 
 def acceptance_limit_table(
@@ -69,7 +69,7 @@ def acceptance_limit_table(
     def overbd_of_sd(sampsd):
         # sampsd broadcasts against `means` (row vector (S,1) x (M,) -> (S,M),
         # or shape (M,) during the bisection refinement stage).
-        sigma = np.sqrt((n - 1) * sampsd ** 2 / chi)
+        sigma = np.sqrt((n - 1) * sampsd**2 / chi)
         llu = means - z * sigma / np.sqrt(n)
         ulu = means + z * sigma / np.sqrt(n)
         overlbd = content_uniformity_bound(llu, sigma, target)
@@ -116,18 +116,18 @@ def probability_of_passing(
     std = (t["MEAN"] * t["CV"] / 100).to_numpy()
     n = number
 
-    u = np.asarray(u_values, dtype=float)[None, :, None]      # (1, U, 1)
-    cv = np.asarray(cv_values, dtype=float)[None, None, :]    # (1, 1, CV)
-    sigma = u * cv / 100                                       # (1, U, CV)
+    u = np.asarray(u_values, dtype=float)[None, :, None]  # (1, U, 1)
+    cv = np.asarray(cv_values, dtype=float)[None, None, :]  # (1, 1, CV)
+    sigma = u * cv / 100  # (1, U, CV)
 
-    x_hi = x[1:, None, None]    # (R-1, 1, 1)
+    x_hi = x[1:, None, None]  # (R-1, 1, 1)
     x_lo = x[:-1, None, None]
     std_hi = std[1:, None, None]
     std_lo = std[:-1, None, None]
 
     pmean = probnorm((x_hi - u) * np.sqrt(n) / sigma) - probnorm((x_lo - u) * np.sqrt(n) / sigma)
     aveht = (std_hi + std_lo) / 2
-    pstd = probchi((n - 1) * aveht ** 2 / sigma ** 2, n - 1)
+    pstd = probchi((n - 1) * aveht**2 / sigma**2, n - 1)
     ptrap = np.sum(pmean * pstd, axis=0)  # (U, CV)
 
     u_flat = np.asarray(u_values, dtype=float)
@@ -164,7 +164,7 @@ def sample_probability(
     chi = cinv(1 - np.sqrt(cilevel / 100), n - 1)
 
     sampsd = mean * cv / 100
-    sigma = np.sqrt((n - 1) * sampsd ** 2 / chi)
+    sigma = np.sqrt((n - 1) * sampsd**2 / chi)
     llu = mean - z * sigma / np.sqrt(n)
     ulu = mean + z * sigma / np.sqrt(n)
 

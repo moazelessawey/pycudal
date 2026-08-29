@@ -38,3 +38,17 @@ cudal = ["logo.png"]
 
 [tool.setuptools.dynamic]
 version = { attr = "cudal.__version__" }
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+ignore = ["E501"]                      # line-length already enforced by formatter
+
+[tool.ruff.lint.isort]
+known-first-party = ["cudal"]
+
+[tool.ruff.format]
+quote-style = "double"

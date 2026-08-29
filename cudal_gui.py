@@ -3,6 +3,7 @@
 
 Installed users should simply run:  cudal-gui
 """
+
 from cudal.gui import main
 
 if __name__ == "__main__":

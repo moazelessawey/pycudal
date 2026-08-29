@@ -63,7 +63,7 @@ pip install .[dev]       # + pytest, pyinstaller
 from cudal import cusp1
 
 table = cusp1.acceptance_limit_table(10, 100.0, 95.0, 95.0, 85.1, 114.9, 0.5)
-prob  = cusp1.probability_of_passing(table, 10, [95.0, 100.0], [1.0, 4.0])
+prob = cusp1.probability_of_passing(table, 10, [95.0, 100.0], [1.0, 4.0])
 bound = cusp1.sample_probability(100.0, 2.0, 10, 100.0, 95.0, 95.0)
 ```
 

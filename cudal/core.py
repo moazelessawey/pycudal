@@ -60,7 +60,7 @@ from __future__ import annotations
 from typing import Callable, Tuple
 
 import numpy as np
-from scipy.special import ndtr, ndtri, gammainc, gammaincinv
+from scipy.special import gammainc, gammaincinv, ndtr, ndtri
 
 __all__ = [
     "probnorm",
@@ -78,6 +78,7 @@ __all__ = [
 # ---------------------------------------------------------------------------
 # Direct SAS function equivalents (already numpy ufuncs -> broadcast for free)
 # ---------------------------------------------------------------------------
+
 
 def probnorm(x):
     """
@@ -135,6 +136,7 @@ def sas_do_range(start: float, stop: float, step: float) -> np.ndarray:
 # Content uniformity core  (c1calc / cullu / cuulu in the SAS source)
 # ---------------------------------------------------------------------------
 
+
 def _cu_stage_prob(mu: np.ndarray, sigma: np.ndarray, E, n: int, k: float) -> np.ndarray:
     """
     One "stage" of the content-uniformity probability calculation
@@ -153,7 +155,7 @@ def _cu_stage_prob(mu: np.ndarray, sigma: np.ndarray, E, n: int, k: float) -> np
 
     z1 = (E - mu) * np.sqrt(n) / sigma
     z2 = (98.5 - mu) * np.sqrt(n) / sigma
-    chi_a = probchi((n - 1) * L1 ** 2 / (k * sigma) ** 2, n - 1)
+    chi_a = probchi((n - 1) * L1**2 / (k * sigma) ** 2, n - 1)
     int1 = (probnorm(z1) - probnorm(z2)) * chi_a
 
     # Broadcast the fixed integration grid against mu/sigma/E by adding a
@@ -236,6 +238,7 @@ def content_uniformity_bound(mu, sigma, target):
 # Dissolution core (COMPUTE macro in Disp1.sas / Disp2.sas -- identical)
 # ---------------------------------------------------------------------------
 
+
 def dissolution_bound(llu, sigma):
     """
     Replicates the ``COMPUTE`` SAS macro (identical in Disp1.sas and
@@ -261,13 +264,13 @@ def dissolution_bound(llu, sigma):
     sn2 = np.sqrt(12)
     pm2 = probnorm(sn2 * (-llu) / sigma)
     pb2 = 1 - probnorm((-15 - llu) / sigma)
-    F2 = pb2 ** 12 - pm2
+    F2 = pb2**12 - pm2
 
     sn3 = np.sqrt(24)
     pm3 = probnorm(sn3 * (-llu) / sigma)
     p2 = probnorm((-15 - llu) / sigma) - probnorm((-25 - llu) / sigma)
     p3 = 1 - probnorm((-15 - llu) / sigma)
-    F3 = p3 ** 24 + 24 * p2 * p3 ** 23 + 276 * p2 ** 2 * p3 ** 22 - pm3
+    F3 = p3**24 + 24 * p2 * p3**23 + 276 * p2**2 * p3**22 - pm3
 
     result = np.maximum(np.maximum(F1, F2), F3)
     return result if result.ndim else result.item()
@@ -276,6 +279,7 @@ def dissolution_bound(llu, sigma):
 # ---------------------------------------------------------------------------
 # Vectorized batch root finding -- replaces per-point brentq/GOTO search
 # ---------------------------------------------------------------------------
+
 
 def batched_root_find(
     func: Callable[[np.ndarray], np.ndarray],
@@ -386,6 +390,10 @@ def batched_two_sided_bounds(
     -------
     (lower, lower_found, upper, upper_found)
     """
-    lower, lower_found = batched_root_find(func_lower, lo, hi, scan_points, bisect_iters, which="first")
-    upper, upper_found = batched_root_find(func_upper, lo, hi, scan_points, bisect_iters, which="last")
+    lower, lower_found = batched_root_find(
+        func_lower, lo, hi, scan_points, bisect_iters, which="first"
+    )
+    upper, upper_found = batched_root_find(
+        func_upper, lo, hi, scan_points, bisect_iters, which="last"
+    )
     return lower, lower_found, upper, upper_found

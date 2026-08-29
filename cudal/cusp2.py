@@ -42,7 +42,14 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from .core import probit, cinv, probnorm, probchi, content_uniformity_bound, batched_two_sided_bounds
+from .core import (
+    batched_two_sided_bounds,
+    cinv,
+    content_uniformity_bound,
+    probchi,
+    probit,
+    probnorm,
+)
 
 
 def _variance_components(se, sm, nn: int, l: int, chierr: float, chiloc: float):
@@ -107,14 +114,15 @@ def acceptance_limit_table(
     target_prob = lbound / 100
     lo, hi = mean_search_range
 
-    se_grid, sm_grid = np.meshgrid(np.asarray(se_values, dtype=float),
-                                    np.asarray(sm_values, dtype=float), indexing="ij")
+    se_grid, sm_grid = np.meshgrid(
+        np.asarray(se_values, dtype=float), np.asarray(sm_values, dtype=float), indexing="ij"
+    )
     se_flat = se_grid.ravel()
     sm_flat = sm_grid.ravel()
 
     var, mvar = _variance_components(se_flat, sm_flat, nn, l, chierr, chiloc)
-    sigma = np.sqrt(var)             # shape (G,)
-    se_of_mean = np.sqrt(mvar / n)   # shape (G,)
+    sigma = np.sqrt(var)  # shape (G,)
+    se_of_mean = np.sqrt(mvar / n)  # shape (G,)
 
     def func_lower(mean):
         llu = mean - z * se_of_mean
@@ -126,7 +134,12 @@ def acceptance_limit_table(
 
     # Bump scan_points/bisect_iters to avoid crossing of overbd_of_sd(sd)
     meanl, meanl_found, meanu, meanu_found = batched_two_sided_bounds(
-        func_lower, func_upper, lo, hi, scan_points=200, bisect_iters=30,
+        func_lower,
+        func_upper,
+        lo,
+        hi,
+        scan_points=200,
+        bisect_iters=30,
     )
 
     ok = meanl_found & meanu_found & (meanu > meanl)
@@ -175,25 +188,35 @@ def probability_of_passing(
     sigse = np.asarray(sigse_values, dtype=float)[None, None, :, None]
     sigsm = np.asarray(sigsm_values, dtype=float)[None, None, None, :]
 
-    expse2 = sigse ** 2
-    expsm2 = expse2 + nn * sigsm ** 2
+    expse2 = sigse**2
+    expsm2 = expse2 + nn * sigsm**2
 
-    pmean = probnorm((meanu - u) * np.sqrt(n / expsm2)) - probnorm((meanl - u) * np.sqrt(n / expsm2))
-    pse = probchi(l * (nn - 1) * se ** 2 / expse2, l * (nn - 1)) - probchi(
+    pmean = probnorm((meanu - u) * np.sqrt(n / expsm2)) - probnorm(
+        (meanl - u) * np.sqrt(n / expsm2)
+    )
+    pse = probchi(l * (nn - 1) * se**2 / expse2, l * (nn - 1)) - probchi(
         l * (nn - 1) * (se - d1) ** 2 / expse2, l * (nn - 1)
     )
-    psm = probchi((l - 1) * nn * sm ** 2 / expsm2, l - 1) - probchi(
+    psm = probchi((l - 1) * nn * sm**2 / expsm2, l - 1) - probchi(
         (l - 1) * nn * (sm - d1) ** 2 / expsm2, l - 1
     )
 
     psum = np.sum(pmean * pse * psm, axis=0)  # (U, SIGSE, SIGSM)
 
-    uu, ee, mm = np.meshgrid(np.asarray(u_values, dtype=float),
-                              np.asarray(sigse_values, dtype=float),
-                              np.asarray(sigsm_values, dtype=float), indexing="ij")
-    return pd.DataFrame({
-        "U": uu.ravel(), "SIGSE": ee.ravel(), "SIGSM": mm.ravel(), "PSUM": psum.ravel(),
-    })
+    uu, ee, mm = np.meshgrid(
+        np.asarray(u_values, dtype=float),
+        np.asarray(sigse_values, dtype=float),
+        np.asarray(sigsm_values, dtype=float),
+        indexing="ij",
+    )
+    return pd.DataFrame(
+        {
+            "U": uu.ravel(),
+            "SIGSE": ee.ravel(),
+            "SIGSM": mm.ravel(),
+            "PSUM": psum.ravel(),
+        }
+    )
 
 
 def sample_probability(
@@ -230,7 +253,13 @@ def sample_probability(
     overbd = min(overbdl, overbdu)
 
     return {
-        "MEAN": mean, "SE": se, "SM": sm,
-        "VAR": var, "MVAR": mvar, "SIGMA": sigma,
-        "OVERBDL": overbdl, "OVERBDU": overbdu, "OVERBD": overbd,
+        "MEAN": mean,
+        "SE": se,
+        "SM": sm,
+        "VAR": var,
+        "MVAR": mvar,
+        "SIGMA": sigma,
+        "OVERBDL": overbdl,
+        "OVERBDU": overbdu,
+        "OVERBD": overbd,
     }

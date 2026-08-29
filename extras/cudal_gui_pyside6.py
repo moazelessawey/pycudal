@@ -29,28 +29,56 @@ import json
 import math
 import os
 import sys
+import time
 import traceback
 
-from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QTabWidget, QWidget, QDialog,
-    QVBoxLayout, QHBoxLayout, QGridLayout, QGroupBox, QLabel, QLineEdit,
-    QRadioButton, QButtonGroup, QPushButton, QProgressBar, QTableWidget,
-    QTableWidgetItem, QHeaderView, QScrollArea, QFrame, QFileDialog,
-    QMessageBox, QComboBox, QSizePolicy, QAbstractItemView,
-)
-from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtCore import QSize, Qt, QThread, QUrl, Signal
 from PySide6.QtGui import (
-    QAction, QIcon, QColor, QBrush, QPixmap, QFont, QFontDatabase, QKeySequence, QShortcut
+    QAction,
+    QBrush,
+    QColor,
+    QDesktopServices,
+    QFont,
+    QFontDatabase,
+    QIcon,
+    QKeySequence,
+    QPainter,
+    QPixmap,
+    QShortcut,
+)
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QApplication,
+    QButtonGroup,
+    QComboBox,
+    QDialog,
+    QFileDialog,
+    QFrame,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMainWindow,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QRadioButton,
+    QScrollArea,
+    QTableWidget,
+    QTableWidgetItem,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
 )
 
 try:
+    from reportlab.lib.pagesizes import landscape, letter
     from reportlab.pdfgen import canvas as rl_canvas
-    from reportlab.lib.pagesizes import letter, landscape
+
     HAVE_PDF = True
 except Exception:  # pragma: no cover
     HAVE_PDF = False
-
-import time
 
 # Heavy / optional dependencies load in stages after the splash appears.
 np = pd = None
@@ -64,7 +92,7 @@ REPO_URL = "https://github.com/moazelessawey/pycudal"
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-VERSION = "1.0.7 (PySide6, modern UI)"
+VERSION = "1.0.8 (PySide6, modern UI)"
 
 BG = "#f4f6f9"
 PANEL_BG = "#ffffff"
@@ -76,11 +104,9 @@ BORDER = "#e2e8f0"
 OK_GREEN = "#1a8754"
 ERR_RED = "#c0392b"
 
-SERIES_COLORS = [ACCENT, OK_GREEN, ERR_RED, "#8e44ad",
-                 "#e67e22", "#16a085", "#c2417d", "#5b6470"]
+SERIES_COLORS = [ACCENT, OK_GREEN, ERR_RED, "#8e44ad", "#e67e22", "#16a085", "#c2417d", "#5b6470"]
 
-SETTINGS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                             "cudal_gui_settings.json")
+SETTINGS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cudal_gui_settings.json")
 
 # ---------------------------------------------------------------------------
 # SAS-style PDF listing export (reportlab, Courier, column wrapping)
@@ -140,8 +166,8 @@ def write_sas_pdf(path, df, title_lines):
     def new_page():
         c.showPage()
         st["y"] = page_h - margin
-        draw_title()                                   # title on every page
-        if st["table_header_fn"] is not None:          # table header on every page
+        draw_title()  # title on every page
+        if st["table_header_fn"] is not None:  # table header on every page
             st["table_header_fn"]()
 
     # -- page-checking drawing -------------------------------------------------
@@ -162,7 +188,7 @@ def write_sas_pdf(path, df, title_lines):
         if st["y"] - n * _PDF_LEAD < margin:
             new_page()
 
-    draw_title()                                       # first-page title
+    draw_title()  # first-page title
 
     cols = [str(x) for x in df.columns]
     low = {cl.lower(): cl for cl in cols}
@@ -201,11 +227,11 @@ def write_sas_pdf(path, df, title_lines):
             put(line)
             blank()
 
-        HDR_LINES = 5   # banner + blank + SM row + LL/UL row + blank
+        HDR_LINES = 5  # banner + blank + SM row + LL/UL row + blank
 
-        for start in range(0, len(sms), per_page):      # column wrapping
-            seg = sms[start:start + per_page]
-            st["table_header_fn"] = None                # don't repeat old header
+        for start in range(0, len(sms), per_page):  # column wrapping
+            seg = sms[start : start + per_page]
+            st["table_header_fn"] = None  # don't repeat old header
             need(HDR_LINES + 1)
             header(seg)
             st["table_header_fn"] = lambda seg=seg: header(seg)
@@ -214,16 +240,17 @@ def write_sas_pdf(path, df, title_lines):
                 for sm in seg:
                     ll, ul = get.get((se, sm), ("*", "*"))
                     line += (" " * gap) + f"{ll:>{ll_w}} {ul:>{ul_w}}"
-                put(line)                               # auto page-break repeats
-            blank()                                     # title + segment header
+                put(line)  # auto page-break repeats
+            blank()  # title + segment header
         st["table_header_fn"] = None
         c.save()
         return
 
     # ------------ Plan-1 style: long rows wrapped into side-by-side blocks --
     body = [[_cell(v) for v in row] for _, row in df.iterrows()]
-    widths = [max(len(cols[j]), max((len(r[j]) for r in body), default=0))
-              for j in range(len(cols))]
+    widths = [
+        max(len(cols[j]), max((len(r[j]) for r in body), default=0)) for j in range(len(cols))
+    ]
 
     hdr = []
     for j, h in enumerate(cols):
@@ -237,8 +264,8 @@ def write_sas_pdf(path, df, title_lines):
     gap, block_gap = 3, 4
     block_w = sum(widths) + gap * (len(widths) - 1)
     n_blocks = max(1, (usable + block_gap) // (block_w + block_gap))
-    rpb = max(1, -(-len(body) // n_blocks))                 # rows per block
-    chunks = [body[i:i + rpb] for i in range(0, len(body), rpb)]
+    rpb = max(1, -(-len(body) // n_blocks))  # rows per block
+    chunks = [body[i : i + rpb] for i in range(0, len(body), rpb)]
 
     def header_line(li):
         return (" " * gap).join(f"{hdr[j][li]:^{widths[j]}}" for j in range(len(cols)))
@@ -251,23 +278,24 @@ def write_sas_pdf(path, df, title_lines):
         return (" " * gap).join(parts)
 
     for p in range(0, len(chunks), n_blocks):
-        page_chunks = chunks[p:p + n_blocks]
+        page_chunks = chunks[p : p + n_blocks]
 
         def draw_hdr(_pc=page_chunks):
             for li in range(hdr_lines):
                 put((" " * block_gap).join(header_line(li) for _ in _pc))
             blank()
 
-        st["table_header_fn"] = None                    # don't repeat old header
+        st["table_header_fn"] = None  # don't repeat old header
         need(hdr_lines + 2)
         draw_hdr()
-        st["table_header_fn"] = draw_hdr                # repeat on page breaks
+        st["table_header_fn"] = draw_hdr  # repeat on page breaks
         for i in range(rpb):
             put((" " * block_gap).join(block_line(ch, i) for ch in page_chunks))
         blank()
     st["table_header_fn"] = None
 
     c.save()
+
 
 def resource_path(relative: str) -> str:
     """Resolve bundled files both from source and from a PyInstaller bundle."""
@@ -289,6 +317,7 @@ def _register_local_fonts() -> str | None:
                 if fams:
                     family = fams[0]
     return family
+
 
 def build_stylesheet(family: str) -> str:
     """Balanced 'classic-modern' theme: familiar desktop look, clean palette."""
@@ -440,7 +469,14 @@ def build_stylesheet(family: str) -> str:
     QToolTip {{
         background: #ffffe1; color: #333333; border: 1px solid #767676; padding: 4px;
     }}
+    QToolBar {{ background: #eef1f6; border: 0; border-bottom: 1px solid #cfd8e3;
+               spacing: 4px; padding: 4px; }}
+    QToolBar QToolButton {{ background: transparent; border: 1px solid transparent;
+                           border-radius: 4px; padding: 4px 8px; color: #2f3a4d; }}
+    QToolBar QToolButton:hover {{ background: #dfe8f7; border-color: #aeb9c8; }}
+    QToolBar QToolButton:pressed {{ background: #cfdffc; }}
     """
+
 
 # ---------------------------------------------------------------------------
 # Plot helpers
@@ -485,8 +521,9 @@ def _grid_columns(df):
         return None
 
     zcol = num.columns[int(np.argmax(uniq))]
-    axes = sorted((c for c in num.columns if c != zcol),
-                  key=lambda c: num[c].nunique(), reverse=True)
+    axes = sorted(
+        (c for c in num.columns if c != zcol), key=lambda c: num[c].nunique(), reverse=True
+    )
 
     # sanity check: the surface must vary more than either axis
     if num[zcol].nunique() <= max(num[axes[0]].nunique(), num[axes[1]].nunique()):
@@ -494,19 +531,24 @@ def _grid_columns(df):
 
     return str(axes[0]), str(axes[1]), str(zcol)
 
+
 def _is_plan2_table(df):
     """Detect a Plan 2 acceptance limit table (SE, SM, and >=2 value columns)."""
     cols = [str(c).lower() for c in df.columns]
-    return 'se' in cols and 'sm' in cols and len(df.columns) >= 4
+    return "se" in cols and "sm" in cols and len(df.columns) >= 4
+
 
 def _get_plan2_axes_and_z(df):
     """Return (x_col, y_col, [z_cols]) for Plan 2 tables."""
     cols = [str(c) for c in df.columns]
     lower_cols = [c.lower() for c in cols]
-    x_col = cols[lower_cols.index('se')] if 'se' in lower_cols else cols[0]
-    y_col = cols[lower_cols.index('sm')] if 'sm' in lower_cols else cols[1]
-    z_cols = [c for c, lc in zip(cols, lower_cols) 
-              if lc not in ('se', 'sm') and pd.api.types.is_numeric_dtype(df[c])]
+    x_col = cols[lower_cols.index("se")] if "se" in lower_cols else cols[0]
+    y_col = cols[lower_cols.index("sm")] if "sm" in lower_cols else cols[1]
+    z_cols = [
+        c
+        for c, lc in zip(cols, lower_cols)
+        if lc not in ("se", "sm") and pd.api.types.is_numeric_dtype(df[c])
+    ]
     return x_col, y_col, z_cols
 
 
@@ -546,12 +588,14 @@ def build_plan2_eval_plot(fig, df, u_col, se_col, sm_col, p_col):
     curve per within-location SD (SE):  P(pass) vs true mean U.
     Dashed lines mark the usual 80 % / 90 % coverage levels.
     """
-    work = pd.DataFrame({
-        "u":  pd.to_numeric(df[u_col],  errors="coerce"),
-        "se": pd.to_numeric(df[se_col], errors="coerce"),
-        "sm": pd.to_numeric(df[sm_col], errors="coerce"),
-        "p":  pd.to_numeric(df[p_col],  errors="coerce"),
-    }).dropna()
+    work = pd.DataFrame(
+        {
+            "u": pd.to_numeric(df[u_col], errors="coerce"),
+            "se": pd.to_numeric(df[se_col], errors="coerce"),
+            "sm": pd.to_numeric(df[sm_col], errors="coerce"),
+            "p": pd.to_numeric(df[p_col], errors="coerce"),
+        }
+    ).dropna()
 
     if work.empty:
         fig.text(0.5, 0.5, "Not enough numeric data to plot.", ha="center", va="center")
@@ -562,7 +606,7 @@ def build_plan2_eval_plot(fig, df, u_col, se_col, sm_col, p_col):
     se_vals = sorted(work["se"].unique())
     n = len(sm_vals)
     ncols = min(3, n)
-    nrows = -(-n // ncols)                      # ceil without importing math
+    nrows = -(-n // ncols)  # ceil without importing math
     axes = fig.subplots(nrows, ncols, squeeze=False, sharex=True, sharey=True)
 
     for i, smv in enumerate(sm_vals):
@@ -586,16 +630,19 @@ def build_plan2_eval_plot(fig, df, u_col, se_col, sm_col, p_col):
         if i % ncols == 0:
             ax.set_ylabel(p_col, fontsize=9)
 
-    for j in range(n, nrows * ncols):         # hide unused panels
+    for j in range(n, nrows * ncols):  # hide unused panels
         axes[j // ncols][j % ncols].set_axis_off()
 
     handles, labels = axes[0][0].get_legend_handles_labels()
     if handles:
-        fig.legend(handles, labels, loc="lower center",
-                   ncol=min(len(labels), 4), fontsize=8, frameon=False)
-    fig.suptitle(f"Probability of passing vs {u_col}  (panels: {sm_col}, curves: {se_col})",
-                 fontsize=10)
+        fig.legend(
+            handles, labels, loc="lower center", ncol=min(len(labels), 4), fontsize=8, frameon=False
+        )
+    fig.suptitle(
+        f"Probability of passing vs {u_col}  (panels: {sm_col}, curves: {se_col})", fontsize=10
+    )
     fig.tight_layout(rect=(0, 0.05, 1, 0.95))
+
 
 def build_results_plot_plan2(fig, df):
     """Family of curves for Plan 2 tables: LL/UL vs SE, grouped by SM."""
@@ -603,10 +650,10 @@ def build_results_plot_plan2(fig, df):
     if not z_cols:
         fig.text(0.5, 0.5, "Not enough data to plot.", ha="center", va="center")
         return
-        
+
     n_z = len(z_cols)
     axes = fig.subplots(1, n_z, squeeze=False)
-    
+
     for idx, z_col in enumerate(z_cols):
         ax = axes[0, idx]
         grouped = df.groupby(y_col, sort=True)
@@ -615,19 +662,20 @@ def build_results_plot_plan2(fig, df):
             ys = sub[z_col].to_numpy(dtype=float)
             order = np.argsort(xs)
             xs, ys = xs[order], ys[order]
-            
+
             xx, yy = _spline_xy(xs, ys)
             ax.plot(xx, yy, "-", color=color, lw=1.6, label=f"{y_col}={sm_val:g}")
             ax.plot(xs, ys, "o", color=color, ms=3, alpha=0.7)
-            
+
         ax.set_xlabel(x_col)
         ax.set_ylabel(z_col)
         ax.set_title(f"{z_col} vs {x_col}")
         ncol = 2 if len(grouped) > 6 else 1
         ax.legend(fontsize=7, loc="best", ncol=ncol)
         ax.grid(True, alpha=0.3)
-        
+
     fig.tight_layout()
+
 
 def build_heatmap_plan2(fig, df, z_col, thresholds=(0.8, 0.9)):
     """Contour-filled heatmap for Plan 2 tables (SE x SM -> Z)."""
@@ -637,39 +685,49 @@ def build_heatmap_plan2(fig, df, z_col, thresholds=(0.8, 0.9)):
         return
     if z_col not in z_cols:
         z_col = z_cols[0]
-        
+
     work = df[[x_col, y_col, z_col]].copy()
     work = work.apply(pd.to_numeric, errors="coerce").dropna()
     piv = work.pivot_table(index=y_col, columns=x_col, values=z_col, aggfunc="mean")
     piv = piv.sort_index(axis=0).sort_index(axis=1)
-    
+
     X = piv.columns.to_numpy(dtype=float)
     Y = piv.index.to_numpy(dtype=float)
     Z = np.ma.masked_invalid(piv.to_numpy(dtype=float))
-    
+
     ax = fig.add_subplot(111)
     if Z.count() == 0 or X.size < 2 or Y.size < 2:
         ax.text(0.5, 0.5, "Not enough grid points for a heatmap.", ha="center", va="center")
         fig.tight_layout()
         return
-        
+
     cs = ax.contourf(X, Y, Z, levels=min(24, max(6, X.size + Y.size)), cmap="viridis")
     fig.colorbar(cs, ax=ax, label=z_col)
-    
-    if X.size <= 15: ax.set_xticks(X)
-    if Y.size <= 15: ax.set_yticks(Y)
-        
+
+    if X.size <= 15:
+        ax.set_xticks(X)
+    if Y.size <= 15:
+        ax.set_yticks(Y)
+
     if float(Z.max()) <= 1.01 and float(Z.min()) >= -0.01:
         for i, t in enumerate(thresholds):
             if float(Z.min()) <= t <= float(Z.max()):
                 ax.contour(X, Y, Z, levels=[t], colors="white", linewidths=1.2)
-                ax.text(0.02, 0.98 - 0.06 * i, f"white line = {t:.0%}",
-                        transform=ax.transAxes, fontsize=8, color="white", va="top")
-                        
+                ax.text(
+                    0.02,
+                    0.98 - 0.06 * i,
+                    f"white line = {t:.0%}",
+                    transform=ax.transAxes,
+                    fontsize=8,
+                    color="white",
+                    va="top",
+                )
+
     ax.set_xlabel(x_col)
     ax.set_ylabel(y_col)
     ax.set_title(f"{z_col} over {x_col} / {y_col}", fontsize=10)
     fig.tight_layout()
+
 
 def build_results_plot(fig, df):
     """Points + spline curves for the results DataFrame."""
@@ -739,7 +797,7 @@ def build_heatmap(fig, df, thresholds=(0.8, 0.9)):
 
     X = piv.columns.to_numpy(dtype=float)
     Y = piv.index.to_numpy(dtype=float)
-    Z = np.ma.masked_invalid(piv.to_numpy(dtype=float))   # holes -> masked, not artifacts
+    Z = np.ma.masked_invalid(piv.to_numpy(dtype=float))  # holes -> masked, not artifacts
 
     if Z.count() == 0 or X.size < 2 or Y.size < 2:
         ax.text(0.5, 0.5, "Not enough grid points for a heatmap.", ha="center", va="center")
@@ -758,8 +816,15 @@ def build_heatmap(fig, df, thresholds=(0.8, 0.9)):
         for i, t in enumerate(thresholds):
             if float(Z.min()) <= t <= float(Z.max()):
                 ax.contour(X, Y, Z, levels=[t], colors="white", linewidths=1.2)
-                ax.text(0.02, 0.98 - 0.06 * i, f"white line = {t:.0%}",
-                        transform=ax.transAxes, fontsize=8, color="white", va="top")
+                ax.text(
+                    0.02,
+                    0.98 - 0.06 * i,
+                    f"white line = {t:.0%}",
+                    transform=ax.transAxes,
+                    fontsize=8,
+                    color="white",
+                    va="top",
+                )
 
     ax.set_xlabel(xcol)
     ax.set_ylabel(ycol)
@@ -881,25 +946,26 @@ class Worker(QThread):
 # Plot dialog (modal)
 # ---------------------------------------------------------------------------
 class PlotDialog(QDialog):
-    def __init__(self, df, parent=None):
+    def __init__(self, df, parent=None, save_base=None):
         super().__init__(parent)
         self.setWindowTitle("Results plot")
         self.resize(880, 640)
         self.setMinimumSize(520, 380)
         self.setModal(True)
         self._df = df
-        
+        self._save_base = save_base or "results"
+
         self._is_plan2 = _is_plan2_table(df)
         self._can_heat = self._is_plan2 or _grid_columns(df) is not None
 
         lay = QVBoxLayout(self)
         top = QHBoxLayout()
         top.addWidget(QLabel("Plot style:"))
-        
+
         self.style_cb = QComboBox()
         self.style_cb.addItems(["Lines + spline"] + (["Heatmap (grid)"] if self._can_heat else []))
         top.addWidget(self.style_cb)
-        
+
         # Z-axis selector for Plan 2 tables
         self.z_cb = None
         if self._is_plan2:
@@ -946,10 +1012,13 @@ class PlotDialog(QDialog):
         self._canvas.draw()
 
     def _save_png(self):
-        path, _ = QFileDialog.getSaveFileName(self, "Save figure", "results.png", "PNG image (*.png)")
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save figure", self._save_base + ".png", "PNG image (*.png)"
+        )
         if path:
             self._fig.savefig(path, dpi=150)
             QMessageBox.information(self, "Saved", f"Figure saved to {path}")
+
 
 # ---------------------------------------------------------------------------
 # Results panel
@@ -966,17 +1035,16 @@ class ResultsPanel(QFrame):
         toolbar = QHBoxLayout()
         title = QLabel("Results")
         title.setObjectName("section")
-        
+
         self.row_count = QLabel("")
         self.row_count.setObjectName("muted")
-        
+
         self.plot_btn = QPushButton("Plot")
-        self.plot_btn.setObjectName("outline")
         self.plot_btn.setEnabled(False)
-        
+
         self.export_btn = QPushButton("Export CSV")
         self.export_btn.setEnabled(False)
-        
+
         self.pdf_btn = QPushButton("Export PDF")
         self.pdf_btn.setEnabled(False)
 
@@ -1088,26 +1156,32 @@ class ResultsPanel(QFrame):
             return
         lines = []
         for r in rows:
-            lines.append("\t".join(
-                self.table.item(r, c).text() if self.table.item(r, c) else ""
-                for c in range(self.table.columnCount())))
+            lines.append(
+                "\t".join(
+                    self.table.item(r, c).text() if self.table.item(r, c) else ""
+                    for c in range(self.table.columnCount())
+                )
+            )
         QApplication.clipboard().setText("\n".join(lines))
 
     def _show_plot(self):
         if not HAVE_MPL:
-            QMessageBox.critical(self, "Plot unavailable",
-                                 "matplotlib is required for plotting.\n"
-                                 "Install it with:  pip install matplotlib")
+            QMessageBox.critical(
+                self,
+                "Plot unavailable",
+                "matplotlib is required for plotting.\nInstall it with:  pip install matplotlib",
+            )
             return
         if self._df is None:
             return
-        PlotDialog(self._df, self).exec()
+        PlotDialog(self._df, self, save_base=self._default_name(suffix="-plot")).exec()
 
     def _export_csv(self):
         if self._df is None:
             return
-        path, _ = QFileDialog.getSaveFileName(self, "Export CSV", "results.csv",
-                                              "CSV files (*.csv)")
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export CSV", self._default_name(ext=".csv"), "CSV files (*.csv)"
+        )
         if not path:
             return
         self._df.to_csv(path, index=False, quoting=csv.QUOTE_MINIMAL)
@@ -1115,13 +1189,17 @@ class ResultsPanel(QFrame):
 
     def _export_pdf(self):
         if not HAVE_PDF:
-            QMessageBox.critical(self, "PDF export unavailable",
-                                 "reportlab is required.\nInstall it with:  pip install reportlab")
+            QMessageBox.critical(
+                self,
+                "PDF export unavailable",
+                "reportlab is required.\nInstall it with:  pip install reportlab",
+            )
             return
         if self._df is None:
             return
-        path, _ = QFileDialog.getSaveFileName(self, "Export PDF", "results.pdf",
-                                              "PDF files (*.pdf)")
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export PDF", self._default_name(ext=".pdf"), "PDF files (*.pdf)"
+        )
         if not path:
             return
         meta = self.report_meta or {"title": ["CuDAL RESULTS"]}
@@ -1131,13 +1209,25 @@ class ResultsPanel(QFrame):
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "PDF export failed", str(exc))
 
+    def _default_name(self, suffix="", ext=""):
+        tab = getattr(self, "tab", None)
+        try:
+            base = tab._export_base_name() if tab is not None else "results"
+        except Exception:
+            base = "results"
+
+        return base + suffix + ext
+
+
 # ---------------------------------------------------------------------------
 # Base tab
 # ---------------------------------------------------------------------------
 class BaseTab(QWidget):
-    MODES = [("table", "Acceptance limit table"),
-             ("evaluate", "Probability of passing"),
-             ("sample", "Sample probability")]
+    MODES = [
+        ("table", "Acceptance limit table"),
+        ("evaluate", "Probability of passing"),
+        ("sample", "Sample probability"),
+    ]
 
     def __init__(self, title, subtitle, parent=None):
         super().__init__(parent)
@@ -1197,10 +1287,10 @@ class BaseTab(QWidget):
             gb = QGroupBox("Parameters")
             gb.setObjectName("card")
             g = QGridLayout()
-            g.setContentsMargins(14, 20, 14, 14)   # strict, uniform card padding
+            g.setContentsMargins(14, 20, 14, 14)  # strict, uniform card padding
             g.setHorizontalSpacing(12)
             g.setVerticalSpacing(8)
-            g.setColumnStretch(0, 1)               # labels fill col 0...
+            g.setColumnStretch(0, 1)  # labels fill col 0...
             g.setColumnMinimumWidth(1, LabeledField.EDIT_WIDTH)  # inputs align in col 1
             gb.setLayout(g)
             self.mode_frames[val] = gb
@@ -1239,6 +1329,8 @@ class BaseTab(QWidget):
 
         # --- right: results -----------------------------------------------------
         self.results = ResultsPanel()
+        # self.results.tab = self
+        self.results.tab = self
         body.addWidget(self.results, 1)
         self.results.oc_btn.clicked.connect(self._show_oc)
 
@@ -1273,8 +1365,10 @@ class BaseTab(QWidget):
     def collect_state(self):
         return {
             "mode": self._current_mode(),
-            "fields": {mode: {k: f.edit.text() for k, f in reg.items()}
-                       for mode, reg in self.field_registry.items()},
+            "fields": {
+                mode: {k: f.edit.text() for k, f in reg.items()}
+                for mode, reg in self.field_registry.items()
+            },
         }
 
     def apply_state(self, state):
@@ -1309,9 +1403,11 @@ class BaseTab(QWidget):
         if self._worker is not None and self._worker.isRunning():
             return
         try:
-            job = {"table": self._run_table,
-                   "evaluate": self._run_evaluate,
-                   "sample": self._run_sample}[self._current_mode()]()
+            job = {
+                "table": self._run_table,
+                "evaluate": self._run_evaluate,
+                "sample": self._run_sample,
+            }[self._current_mode()]()
         except ValueError as exc:
             QMessageBox.critical(self, "Invalid input", str(exc))
             return
@@ -1386,7 +1482,9 @@ class BaseTab(QWidget):
             key = f"TARGET = {target:.1f}" if target is not None else f"Q = {q:.1f}"
             lines.append(f"ACCEPTANCE LIMITS FOR {dom}(N= {n:.0f}, {key})")
             lines.append("SAMPLING PLAN 1")
-            lines.append(f"(MEETING LIMITS GUARANTEES, WITH {cilevel:.1f}% ASSURANCE, THAT AT LEAST")
+            lines.append(
+                f"(MEETING LIMITS GUARANTEES, WITH {cilevel:.1f}% ASSURANCE, THAT AT LEAST"
+            )
             lines.append(f"{lbound:.1f}% OF SAMPLES TESTED FOR {dom} WILL PASS THE USP TEST)")
         else:
             lines.append(f"ACCEPTANCE LIMITS FOR {dom}")
@@ -1395,13 +1493,51 @@ class BaseTab(QWidget):
             lines.append(f"{base}, LOWER BOUND = {lbound:.1f}, CONFIDENCE LEVEL = {cilevel:.1f}")
             lines.append("TABLE ENTRIES ARE LOWER(LL) AND UPPER(UL) LIMITS ON THE MEAN")
             if n is not None and loc is not None:
-                lines.append(f"OF {int(n * loc)} ASSAYS:  {int(n)} ASSAYS AT EACH OF "
-                             f"{int(loc)} DIFFERENT LOCATIONS")
+                lines.append(
+                    f"OF {int(n * loc)} ASSAYS:  {int(n)} ASSAYS AT EACH OF "
+                    f"{int(loc)} DIFFERENT LOCATIONS"
+                )
             lines.append("SE IS THE POOLED WITHIN LOCATION STANDARD DEVIATION")
             lines.append("STANDARD DEVIATIONS AND MEANS ARE EXPRESSED IN % CLAIM")
         if self._current_mode() != "table":
             lines.append(f"MODE: {dict(self.MODES)[self._current_mode()].upper()}")
         return {"title": lines}
+
+    def _export_base_name(self):
+        name = type(self).__name__
+        dom = "DISSOLUTION" if name.startswith("Disp") else "CONTENT UNIFORMITY"
+        plan = 2 if name.endswith("2Tab") else 1
+        method = ("CUSP" if "CONTENT" in dom else "DISP") + str(plan)
+        v = getattr(self, "table_fields", {})
+
+        def g(key):
+            try:
+                return float(v[key].get(float))
+            except Exception:
+                return None
+
+        toks = [method]
+        q = g("q")
+        if q is not None:
+            toks.append(f"Q{q:g}")
+        lb, ci = g("lbound"), g("cilevel")
+        if lb is not None and ci is not None:
+            toks.append(f"{lb:g}x{ci:g}")
+        if plan == 1:
+            n = g("number")
+            if n is not None:
+                toks.append(f"{n:g}N")
+        else:
+            loc, num = g("loc"), g("num")
+            if loc is not None and num is not None:
+                toks.append(f"{loc:g}Lx{num:g}N")
+        base = "-".join(toks)
+        mode = self._current_mode()
+        if mode == "evaluate":
+            base += "-EVAL"
+        elif mode == "sample":
+            base += "-SAMPLE"
+        return base
 
     # new methods:
     def _oc_available(self):
@@ -1412,13 +1548,15 @@ class BaseTab(QWidget):
 
     def _show_oc(self):
         if not HAVE_MPL:
-            QMessageBox.critical(self, "Plot unavailable", "matplotlib is required.\npip install matplotlib")
+            QMessageBox.critical(
+                self, "Plot unavailable", "matplotlib is required.\npip install matplotlib"
+            )
             return
         ctx = self._oc_context()
         if ctx is None:
             QMessageBox.information(self, "OC curve", "Not available for this scenario.")
             return
-        OCDialog(ctx, self).exec()
+        OCDialog(ctx, self, save_base=self._export_base_name() + "-OC").exec()
 
 
 def make_grid(low: float, high: float, step: float, name: str):
@@ -1435,51 +1573,68 @@ def make_grid(low: float, high: float, step: float, name: str):
 # ---------------------------------------------------------------------------
 class Cusp1Tab(BaseTab):
     def __init__(self, parent=None):
-        super().__init__("Content Uniformity -- Sampling Plan 1",
-                         "Single composite sample (USP <905>).", parent)
+        super().__init__(
+            "Content Uniformity -- Sampling Plan 1", "Single composite sample (USP <905>).", parent
+        )
         self._last_table = None
 
     def _build_mode_frames(self):
-        self.table_fields = build_form(self.mode_frames["table"].layout(), [
-            ("number", "Number of units (N)", 10),
-            ("target", "Target / label claim (%)", 100.0),
-            ("lbound", "Lower bound (%)", 95.0),
-            ("cilevel", "Confidence level (%)", 95.0),
-            ("mean_low", "Mean grid low", 85.1),
-            ("mean_high", "Mean grid high", 114.9),
-            ("mean_step", "Mean grid step", 0.5),
-        ], registry=self.field_registry["table"])
+        self.table_fields = build_form(
+            self.mode_frames["table"].layout(),
+            [
+                ("number", "Number of units (N)", 10),
+                ("target", "Target / label claim (%)", 100.0),
+                ("lbound", "Lower bound (%)", 95.0),
+                ("cilevel", "Confidence level (%)", 95.0),
+                ("mean_low", "Mean grid low", 85.1),
+                ("mean_high", "Mean grid high", 114.9),
+                ("mean_step", "Mean grid step", 0.5),
+            ],
+            registry=self.field_registry["table"],
+        )
 
         lay = self.mode_frames["evaluate"].layout()
         desc = QLabel("Builds the table above, then evaluates:")
         desc.setObjectName("muted")
         desc.setWordWrap(True)
         lay.addWidget(desc, 0, 0, 1, 2)
-        self.eval_fields = build_form(lay, [
-            ("u_low", "True mean U -- low", 95.0),
-            ("u_high", "True mean U -- high", 105.0),
-            ("u_step", "True mean U -- step", 2.5),
-            ("cv_low", "True CV(%) -- low", 1.0),
-            ("cv_high", "True CV(%) -- high", 4.0),
-            ("cv_step", "True CV(%) -- step", 1.0),
-        ], start_row=1, registry=self.field_registry["evaluate"])
+        self.eval_fields = build_form(
+            lay,
+            [
+                ("u_low", "True mean U -- low", 95.0),
+                ("u_high", "True mean U -- high", 105.0),
+                ("u_step", "True mean U -- step", 2.5),
+                ("cv_low", "True CV(%) -- low", 1.0),
+                ("cv_high", "True CV(%) -- high", 4.0),
+                ("cv_step", "True CV(%) -- step", 1.0),
+            ],
+            start_row=1,
+            registry=self.field_registry["evaluate"],
+        )
         for k in ("number", "target", "lbound", "cilevel"):
             self.eval_fields[k] = self.table_fields[k]
 
-        self.sample_fields = build_form(self.mode_frames["sample"].layout(), [
-            ("mean", "Sample mean (%)", 100.0),
-            ("cv", "Sample CV (%)", 2.0),
-            ("number", "Number of units (N)", 10),
-            ("target", "Target / label claim (%)", 100.0),
-            ("lbound", "Lower bound (%)", 95.0),
-            ("cilevel", "Confidence level (%)", 95.0),
-        ], registry=self.field_registry["sample"])
+        self.sample_fields = build_form(
+            self.mode_frames["sample"].layout(),
+            [
+                ("mean", "Sample mean (%)", 100.0),
+                ("cv", "Sample CV (%)", 2.0),
+                ("number", "Number of units (N)", 10),
+                ("target", "Target / label claim (%)", 100.0),
+                ("lbound", "Lower bound (%)", 95.0),
+                ("cilevel", "Confidence level (%)", 95.0),
+            ],
+            registry=self.field_registry["sample"],
+        )
 
     def _run_table(self):
         v = self.table_fields
-        number = v["number"].get(int); target = v["target"].get(float)
-        lbound = v["lbound"].get(float); cilevel = v["cilevel"].get(float)
-        mean_low = v["mean_low"].get(float); mean_high = v["mean_high"].get(float)
+        number = v["number"].get(int)
+        target = v["target"].get(float)
+        lbound = v["lbound"].get(float)
+        cilevel = v["cilevel"].get(float)
+        mean_low = v["mean_low"].get(float)
+        mean_high = v["mean_high"].get(float)
         mean_step = v["mean_step"].get(float)
         key = self._cache_key(number, target, lbound, cilevel, mean_low, mean_high, mean_step)
 
@@ -1489,24 +1644,34 @@ class Cusp1Tab(BaseTab):
                 progress(0.5, "Using cached table...")
                 return hit
             progress(0.2, "Computing acceptance table...")
-            table = cusp1.acceptance_limit_table(number, target, lbound, cilevel,
-                                                 mean_low, mean_high, mean_step)
+            table = cusp1.acceptance_limit_table(
+                number, target, lbound, cilevel, mean_low, mean_high, mean_step
+            )
             self._table_cache[key] = table
             self._last_table = table
             progress(1.0, "Table complete.")
             return table
+
         return job
 
     def _run_evaluate(self):
         v = self.table_fields
-        number = v["number"].get(int); target = v["target"].get(float)
-        lbound = v["lbound"].get(float); cilevel = v["cilevel"].get(float)
-        u_vals = make_grid(self.eval_fields["u_low"].get(float),
-                           self.eval_fields["u_high"].get(float),
-                           self.eval_fields["u_step"].get(float), "U")
-        cv_vals = make_grid(self.eval_fields["cv_low"].get(float),
-                            self.eval_fields["cv_high"].get(float),
-                            self.eval_fields["cv_step"].get(float), "CV")
+        number = v["number"].get(int)
+        target = v["target"].get(float)
+        lbound = v["lbound"].get(float)
+        cilevel = v["cilevel"].get(float)
+        u_vals = make_grid(
+            self.eval_fields["u_low"].get(float),
+            self.eval_fields["u_high"].get(float),
+            self.eval_fields["u_step"].get(float),
+            "U",
+        )
+        cv_vals = make_grid(
+            self.eval_fields["cv_low"].get(float),
+            self.eval_fields["cv_high"].get(float),
+            self.eval_fields["cv_step"].get(float),
+            "CV",
+        )
         key = self._cache_key(number, target, lbound, cilevel)
 
         def job(progress):
@@ -1520,31 +1685,46 @@ class Cusp1Tab(BaseTab):
                 progress(0.2, "Using cached table...")
             progress(0.6, "Evaluating probability grid...")
             return cusp1.probability_of_passing(table, number, u_vals, cv_vals)
+
         return job
 
     def _run_sample(self):
         v = self.sample_fields
-        mean = v["mean"].get(float); cv = v["cv"].get(float)
-        number = v["number"].get(int); target = v["target"].get(float)
-        lbound = v["lbound"].get(float); cilevel = v["cilevel"].get(float)
+        mean = v["mean"].get(float)
+        cv = v["cv"].get(float)
+        number = v["number"].get(int)
+        target = v["target"].get(float)
+        lbound = v["lbound"].get(float)
+        cilevel = v["cilevel"].get(float)
 
         def job(progress):
             progress(0.4, "Computing sample probability...")
             return cusp1.sample_probability(mean, cv, number, target, lbound, cilevel)
+
         return job
 
-    def _oc_available(self): return True
+    def _oc_available(self):
+        return True
+
     def _oc_context(self):
         v = self.table_fields
-        number = v["number"].get(int); target = v["target"].get(float)
-        lbound = v["lbound"].get(float); cilevel = v["cilevel"].get(float)
-        table = self._last_table if self._last_table is not None else  cusp1.acceptance_limit_table(number, target, lbound, cilevel)
+        number = v["number"].get(int)
+        target = v["target"].get(float)
+        lbound = v["lbound"].get(float)
+        cilevel = v["cilevel"].get(float)
+        table = (
+            self._last_table
+            if self._last_table is not None
+            else cusp1.acceptance_limit_table(number, target, lbound, cilevel)
+        )
 
         def computed(xk, xs, fx):
             if xk == "cv":
                 res = cusp1.probability_of_passing(table, number, [fx["U"]], [float(x) for x in xs])
             else:
-                res = cusp1.probability_of_passing(table, number, [float(x) for x in xs], [fx["CV"]])
+                res = cusp1.probability_of_passing(
+                    table, number, [float(x) for x in xs], [fx["CV"]]
+                )
             return _prob_series(res)
 
         def make_units(xk, x, fx, rng, reps):
@@ -1552,67 +1732,94 @@ class Cusp1Tab(BaseTab):
             CV = x if xk == "cv" else fx["CV"]
             return rng.normal(U, U * CV / 100.0, (reps, 30))
 
-        return make_oc_context("cu", target, computed, make_units,
+        return make_oc_context(
+            "cu",
+            target,
+            computed,
+            make_units,
             [("cv", "True CV (%)  [U fixed]"), ("u", "True mean U (%)  [CV fixed]")],
             {"cv": (0.5, 10.0, 0.25), "u": (85.0, 115.0, 1.0)},
-            {"cv": [("U", target)], "u": [("CV", 2.0)]})
+            {"cv": [("U", target)], "u": [("CV", 2.0)]},
+        )
+
 
 class Cusp2Tab(BaseTab):
     def __init__(self, parent=None):
-        super().__init__("Content Uniformity -- Sampling Plan 2",
-                         "Multiple locations, within/between-location variance components (USP <905>).",
-                         parent)
+        super().__init__(
+            "Content Uniformity -- Sampling Plan 2",
+            "Multiple locations, within/between-location variance components (USP <905>).",
+            parent,
+        )
         self._last_table = None
 
     def _build_mode_frames(self):
-        self.table_fields = build_form(self.mode_frames["table"].layout(), [
-            ("num", "Units per location", 6),
-            ("loc", "Number of locations", 10),
-            ("target", "Target / label claim (%)", 100.0),
-            ("lbound", "Lower bound (%)", 95.0),
-            ("cilevel", "Confidence level (%)", 95.0),
-            ("se_low", "Within-loc SD -- low", 0.5),
-            ("se_high", "Within-loc SD -- high", 4.0),
-            ("se_step", "Within-loc SD -- step", 0.5),
-            ("sm_low", "Between-loc SD -- low", 0.5),
-            ("sm_high", "Between-loc SD -- high", 4.0),
-            ("sm_step", "Between-loc SD -- step", 0.5),
-        ], registry=self.field_registry["table"])
+        self.table_fields = build_form(
+            self.mode_frames["table"].layout(),
+            [
+                ("num", "Units per location", 6),
+                ("loc", "Number of locations", 10),
+                ("target", "Target / label claim (%)", 100.0),
+                ("lbound", "Lower bound (%)", 95.0),
+                ("cilevel", "Confidence level (%)", 95.0),
+                ("se_low", "Within-loc SD -- low", 0.5),
+                ("se_high", "Within-loc SD -- high", 4.0),
+                ("se_step", "Within-loc SD -- step", 0.5),
+                ("sm_low", "Between-loc SD -- low", 0.5),
+                ("sm_high", "Between-loc SD -- high", 4.0),
+                ("sm_step", "Between-loc SD -- step", 0.5),
+            ],
+            registry=self.field_registry["table"],
+        )
 
         lay = self.mode_frames["evaluate"].layout()
         desc = QLabel("Builds the table above, then evaluates:")
         desc.setObjectName("muted")
         desc.setWordWrap(True)
         lay.addWidget(desc, 0, 0, 1, 2)
-        self.eval_fields = build_form(lay, [
-            ("u_low", "True mean U -- low", 95.0),
-            ("u_high", "True mean U -- high", 105.0),
-            ("u_step", "True mean U -- step", 2.5),
-            ("sigse_low", "True within-loc SD -- low", 1.0),
-            ("sigse_high", "True within-loc SD -- high", 3.0),
-            ("sigse_step", "True within-loc SD -- step", 1.0),
-            ("sigsm_low", "True between-loc SD -- low", 1.0),
-            ("sigsm_high", "True between-loc SD -- high", 3.0),
-            ("sigsm_step", "True between-loc SD -- step", 1.0),
-        ], start_row=1, registry=self.field_registry["evaluate"])
+        self.eval_fields = build_form(
+            lay,
+            [
+                ("u_low", "True mean U -- low", 95.0),
+                ("u_high", "True mean U -- high", 105.0),
+                ("u_step", "True mean U -- step", 2.5),
+                ("sigse_low", "True within-loc SD -- low", 1.0),
+                ("sigse_high", "True within-loc SD -- high", 3.0),
+                ("sigse_step", "True within-loc SD -- step", 1.0),
+                ("sigsm_low", "True between-loc SD -- low", 1.0),
+                ("sigsm_high", "True between-loc SD -- high", 3.0),
+                ("sigsm_step", "True between-loc SD -- step", 1.0),
+            ],
+            start_row=1,
+            registry=self.field_registry["evaluate"],
+        )
 
-        self.sample_fields = build_form(self.mode_frames["sample"].layout(), [
-            ("mean", "Sample mean (%)", 100.0),
-            ("se", "Sample within-loc SD", 2.2),
-            ("sm", "Sample between-loc SD", 2.46),
-            ("num", "Units per location", 6),
-            ("loc", "Number of locations", 10),
-            ("target", "Target / label claim (%)", 100.0),
-            ("cilevel", "Confidence level (%)", 95.0),
-        ], registry=self.field_registry["sample"])
+        self.sample_fields = build_form(
+            self.mode_frames["sample"].layout(),
+            [
+                ("mean", "Sample mean (%)", 100.0),
+                ("se", "Sample within-loc SD", 2.2),
+                ("sm", "Sample between-loc SD", 2.46),
+                ("num", "Units per location", 6),
+                ("loc", "Number of locations", 10),
+                ("target", "Target / label claim (%)", 100.0),
+                ("cilevel", "Confidence level (%)", 95.0),
+            ],
+            registry=self.field_registry["sample"],
+        )
 
     def _table_args(self):
         v = self.table_fields
-        num = v["num"].get(int); loc = v["loc"].get(int)
-        target = v["target"].get(float); lbound = v["lbound"].get(float)
+        num = v["num"].get(int)
+        loc = v["loc"].get(int)
+        target = v["target"].get(float)
+        lbound = v["lbound"].get(float)
         cilevel = v["cilevel"].get(float)
-        se_vals = make_grid(v["se_low"].get(float), v["se_high"].get(float), v["se_step"].get(float), "SE")
-        sm_vals = make_grid(v["sm_low"].get(float), v["sm_high"].get(float), v["sm_step"].get(float), "SM")
+        se_vals = make_grid(
+            v["se_low"].get(float), v["se_high"].get(float), v["se_step"].get(float), "SE"
+        )
+        sm_vals = make_grid(
+            v["sm_low"].get(float), v["sm_high"].get(float), v["sm_step"].get(float), "SM"
+        )
         return num, loc, target, lbound, cilevel, se_vals, sm_vals
 
     def _run_table(self):
@@ -1626,28 +1833,45 @@ class Cusp2Tab(BaseTab):
                 progress(0.5, "Using cached table...")
                 return hit
             progress(0.2, "Computing acceptance table (Plan 2)...")
-            table = cusp2.acceptance_limit_table(num, loc, target, lbound, cilevel, se_vals, sm_vals)
+            table = cusp2.acceptance_limit_table(
+                num, loc, target, lbound, cilevel, se_vals, sm_vals
+            )
             self._table_cache[key] = table
             self._last_table = table
             progress(1.0, "Table complete.")
             return table
+
         return job
 
     def _run_evaluate(self):
         num, loc, target, lbound, cilevel, se_vals, sm_vals = self._table_args()
-        u_vals = make_grid(self.eval_fields["u_low"].get(float), self.eval_fields["u_high"].get(float),
-                           self.eval_fields["u_step"].get(float), "U")
-        sigse_vals = make_grid(self.eval_fields["sigse_low"].get(float), self.eval_fields["sigse_high"].get(float),
-                               self.eval_fields["sigse_step"].get(float), "within-loc SD")
-        sigsm_vals = make_grid(self.eval_fields["sigsm_low"].get(float), self.eval_fields["sigsm_high"].get(float),
-                               self.eval_fields["sigsm_step"].get(float), "between-loc SD")
+        u_vals = make_grid(
+            self.eval_fields["u_low"].get(float),
+            self.eval_fields["u_high"].get(float),
+            self.eval_fields["u_step"].get(float),
+            "U",
+        )
+        sigse_vals = make_grid(
+            self.eval_fields["sigse_low"].get(float),
+            self.eval_fields["sigse_high"].get(float),
+            self.eval_fields["sigse_step"].get(float),
+            "within-loc SD",
+        )
+        sigsm_vals = make_grid(
+            self.eval_fields["sigsm_low"].get(float),
+            self.eval_fields["sigsm_high"].get(float),
+            self.eval_fields["sigsm_step"].get(float),
+            "between-loc SD",
+        )
         key = self._cache_key(num, loc, target, lbound, cilevel, se_vals, sm_vals)
 
         def job(progress):
             table = self._table_cache.get(key)
             if table is None:
                 progress(0.2, "Building acceptance table (Plan 2)...")
-                table = cusp2.acceptance_limit_table(num, loc, target, lbound, cilevel, se_vals, sm_vals)
+                table = cusp2.acceptance_limit_table(
+                    num, loc, target, lbound, cilevel, se_vals, sm_vals
+                )
                 self._last_table = table
                 self._table_cache[key] = table
                 self._last_table = table
@@ -1656,43 +1880,68 @@ class Cusp2Tab(BaseTab):
             d1 = se_vals[1] - se_vals[0] if len(se_vals) > 1 else 0.1
             progress(0.6, "Evaluating probability grid...")
             return cusp2.probability_of_passing(table, num, loc, d1, u_vals, sigse_vals, sigsm_vals)
+
         return job
 
     def _run_sample(self):
         v = self.sample_fields
-        mean = v["mean"].get(float); se = v["se"].get(float); sm = v["sm"].get(float)
-        num = v["num"].get(int); loc = v["loc"].get(int)
-        target = v["target"].get(float); cilevel = v["cilevel"].get(float)
+        mean = v["mean"].get(float)
+        se = v["se"].get(float)
+        sm = v["sm"].get(float)
+        num = v["num"].get(int)
+        loc = v["loc"].get(int)
+        target = v["target"].get(float)
+        cilevel = v["cilevel"].get(float)
 
         def job(progress):
             progress(0.4, "Computing sample probability...")
             return cusp2.sample_probability(mean, se, sm, num, loc, target, cilevel)
+
         return job
 
-    def _oc_available(self): return True
+    def _oc_available(self):
+        return True
+
     def _oc_context(self):
         v = self.table_fields
         num, loc = v["num"].get(int), v["loc"].get(int)
-        target = v["target"].get(float); lbound = v["lbound"].get(float); cilevel = v["cilevel"].get(float)
-        se_vals = make_grid(v["se_low"].get(float), v["se_high"].get(float), v["se_step"].get(float), "SE")
-        sm_vals = make_grid(v["sm_low"].get(float), v["sm_high"].get(float), v["sm_step"].get(float), "SM")
+        target = v["target"].get(float)
+        lbound = v["lbound"].get(float)
+        cilevel = v["cilevel"].get(float)
+        se_vals = make_grid(
+            v["se_low"].get(float), v["se_high"].get(float), v["se_step"].get(float), "SE"
+        )
+        sm_vals = make_grid(
+            v["sm_low"].get(float), v["sm_high"].get(float), v["sm_step"].get(float), "SM"
+        )
         d1 = se_vals[1] - se_vals[0] if len(se_vals) > 1 else 0.1
-        table = self._last_table if self._last_table is not None else  cusp2.acceptance_limit_table(num, loc, target, lbound, cilevel, se_vals, sm_vals)
+        table = (
+            self._last_table
+            if self._last_table is not None
+            else cusp2.acceptance_limit_table(num, loc, target, lbound, cilevel, se_vals, sm_vals)
+        )
 
         def computed(xk, xs, fx):
             U = [float(x) for x in xs] if xk == "u" else [fx["U"]]
             SE = [float(x) for x in xs] if xk == "se" else [fx["SE"]]
-            return _prob_series(cusp2.probability_of_passing(table, num, loc, d1, U, SE, [fx["SM"]]))
+            return _prob_series(
+                cusp2.probability_of_passing(table, num, loc, d1, U, SE, [fx["SM"]])
+            )
 
         def make_units(xk, x, fx, rng, reps):
             U = x if xk == "u" else fx["U"]
             SE = x if xk == "se" else fx["SE"]
             return U + rng.normal(0.0, fx["SM"], (reps, 1)) + rng.normal(0.0, SE, (reps, 30))
 
-        return make_oc_context("cu", target, computed, make_units,
+        return make_oc_context(
+            "cu",
+            target,
+            computed,
+            make_units,
             [("se", "True within-loc SD  [U, SM fixed]"), ("u", "True mean U  [SE, SM fixed]")],
             {"se": (0.5, 10.0, 0.25), "u": (85.0, 115.0, 1.0)},
-            {"se": [("U", target), ("SM", 2.2)], "u": [("SE", 2.2), ("SM", 2.2)]})
+            {"se": [("U", target), ("SM", 2.2)], "u": [("SE", 2.2), ("SM", 2.2)]},
+        )
 
 
 class Disp1Tab(BaseTab):
@@ -1701,40 +1950,55 @@ class Disp1Tab(BaseTab):
         self._last_table = None
 
     def _build_mode_frames(self):
-        self.table_fields = build_form(self.mode_frames["table"].layout(), [
-            ("number", "Number of units (N)", 6),
-            ("q", "Q value (%)", 80.0),
-            ("lbound", "Lower bound (%)", 95.0),
-            ("cilevel", "Confidence level (%)", 95.0),
-            ("meanadj_step", "Mean grid step", 1.0),
-        ], registry=self.field_registry["table"])
+        self.table_fields = build_form(
+            self.mode_frames["table"].layout(),
+            [
+                ("number", "Number of units (N)", 6),
+                ("q", "Q value (%)", 80.0),
+                ("lbound", "Lower bound (%)", 95.0),
+                ("cilevel", "Confidence level (%)", 95.0),
+                ("meanadj_step", "Mean grid step", 1.0),
+            ],
+            registry=self.field_registry["table"],
+        )
 
         lay = self.mode_frames["evaluate"].layout()
         desc = QLabel("Builds the table above, then evaluates:")
         desc.setObjectName("muted")
         desc.setWordWrap(True)
         lay.addWidget(desc, 0, 0, 1, 2)
-        self.eval_fields = build_form(lay, [
-            ("u_low", "True mean U -- low", 90.0),
-            ("u_high", "True mean U -- high", 100.0),
-            ("u_step", "True mean U -- step", 2.5),
-            ("cv_low", "True CV(%) -- low", 1.0),
-            ("cv_high", "True CV(%) -- high", 4.0),
-            ("cv_step", "True CV(%) -- step", 1.0),
-        ], start_row=1, registry=self.field_registry["evaluate"])
+        self.eval_fields = build_form(
+            lay,
+            [
+                ("u_low", "True mean U -- low", 90.0),
+                ("u_high", "True mean U -- high", 100.0),
+                ("u_step", "True mean U -- step", 2.5),
+                ("cv_low", "True CV(%) -- low", 1.0),
+                ("cv_high", "True CV(%) -- high", 4.0),
+                ("cv_step", "True CV(%) -- step", 1.0),
+            ],
+            start_row=1,
+            registry=self.field_registry["evaluate"],
+        )
 
-        self.sample_fields = build_form(self.mode_frames["sample"].layout(), [
-            ("mean", "Sample mean (%)", 90.0),
-            ("cv", "Sample CV (%)", 3.0),
-            ("number", "Number of units (N)", 6),
-            ("q", "Q value (%)", 80.0),
-            ("cilevel", "Confidence level (%)", 95.0),
-        ], registry=self.field_registry["sample"])
+        self.sample_fields = build_form(
+            self.mode_frames["sample"].layout(),
+            [
+                ("mean", "Sample mean (%)", 90.0),
+                ("cv", "Sample CV (%)", 3.0),
+                ("number", "Number of units (N)", 6),
+                ("q", "Q value (%)", 80.0),
+                ("cilevel", "Confidence level (%)", 95.0),
+            ],
+            registry=self.field_registry["sample"],
+        )
 
     def _run_table(self):
         v = self.table_fields
-        number = v["number"].get(int); q = v["q"].get(float)
-        lbound = v["lbound"].get(float); cilevel = v["cilevel"].get(float)
+        number = v["number"].get(int)
+        q = v["q"].get(float)
+        lbound = v["lbound"].get(float)
+        cilevel = v["cilevel"].get(float)
         meanadj_step = v["meanadj_step"].get(float)
         key = self._cache_key(number, q, lbound, cilevel, meanadj_step)
 
@@ -1749,16 +2013,27 @@ class Disp1Tab(BaseTab):
             self._last_table = table
             progress(1.0, "Table complete.")
             return table
+
         return job
 
     def _run_evaluate(self):
         v = self.table_fields
-        number = v["number"].get(int); q = v["q"].get(float)
-        lbound = v["lbound"].get(float); cilevel = v["cilevel"].get(float)
-        u_vals = make_grid(self.eval_fields["u_low"].get(float), self.eval_fields["u_high"].get(float),
-                           self.eval_fields["u_step"].get(float), "U")
-        cv_vals = make_grid(self.eval_fields["cv_low"].get(float), self.eval_fields["cv_high"].get(float),
-                            self.eval_fields["cv_step"].get(float), "CV")
+        number = v["number"].get(int)
+        q = v["q"].get(float)
+        lbound = v["lbound"].get(float)
+        cilevel = v["cilevel"].get(float)
+        u_vals = make_grid(
+            self.eval_fields["u_low"].get(float),
+            self.eval_fields["u_high"].get(float),
+            self.eval_fields["u_step"].get(float),
+            "U",
+        )
+        cv_vals = make_grid(
+            self.eval_fields["cv_low"].get(float),
+            self.eval_fields["cv_high"].get(float),
+            self.eval_fields["cv_step"].get(float),
+            "CV",
+        )
         key = self._cache_key(number, q, lbound, cilevel)
 
         def job(progress):
@@ -1772,32 +2047,45 @@ class Disp1Tab(BaseTab):
                 progress(0.2, "Using cached table...")
             progress(0.6, "Evaluating probability grid...")
             return disp1.probability_of_passing(table, number, u_vals, cv_vals)
+
         return job
 
     def _run_sample(self):
         v = self.sample_fields
-        mean = v["mean"].get(float); cv = v["cv"].get(float)
-        number = v["number"].get(int); q = v["q"].get(float)
+        mean = v["mean"].get(float)
+        cv = v["cv"].get(float)
+        number = v["number"].get(int)
+        q = v["q"].get(float)
         cilevel = v["cilevel"].get(float)
 
         def job(progress):
             progress(0.4, "Computing sample probability...")
             return disp1.sample_probability(mean, cv, number, q, cilevel)
+
         return job
 
+    def _oc_available(self):
+        return True
 
-    def _oc_available(self): return True
     def _oc_context(self):
         v = self.table_fields
-        number = v["number"].get(int); q = v["q"].get(float)
-        lbound = v["lbound"].get(float); cilevel = v["cilevel"].get(float)
-        table = self._last_table if self._last_table is not None else disp1.acceptance_limit_table(number, q, lbound, cilevel)
+        number = v["number"].get(int)
+        q = v["q"].get(float)
+        lbound = v["lbound"].get(float)
+        cilevel = v["cilevel"].get(float)
+        table = (
+            self._last_table
+            if self._last_table is not None
+            else disp1.acceptance_limit_table(number, q, lbound, cilevel)
+        )
 
         def computed(xk, xs, fx):
             if xk == "cv":
                 res = disp1.probability_of_passing(table, number, [fx["U"]], [float(x) for x in xs])
             else:
-                res = disp1.probability_of_passing(table, number, [float(x) for x in xs], [fx["CV"]])
+                res = disp1.probability_of_passing(
+                    table, number, [float(x) for x in xs], [fx["CV"]]
+                )
             return _prob_series(res)
 
         def make_units(xk, x, fx, rng, reps):
@@ -1805,68 +2093,94 @@ class Disp1Tab(BaseTab):
             CV = x if xk == "cv" else fx["CV"]
             return rng.normal(U, U * CV / 100.0, (reps, 24))
 
-        return make_oc_context("disp", q, computed, make_units,
+        return make_oc_context(
+            "disp",
+            q,
+            computed,
+            make_units,
             [("cv", "True CV (%)  [U fixed]"), ("u", "True mean U (%)  [CV fixed]")],
             {"cv": (0.5, 25.0, 0.5), "u": (70.0, 120.0, 1.0)},
-            {"cv": [("U", 100.0)], "u": [("CV", 3.0)]})
+            {"cv": [("U", 100.0)], "u": [("CV", 3.0)]},
+        )
 
 
 class Disp2Tab(BaseTab):
     def __init__(self, parent=None):
-        super().__init__("Dissolution -- Sampling Plan 2",
-                         "Multiple locations, within/between-location variance components (USP <711>).",
-                         parent)
+        super().__init__(
+            "Dissolution -- Sampling Plan 2",
+            "Multiple locations, within/between-location variance components (USP <711>).",
+            parent,
+        )
         self._last_table = None
 
     def _build_mode_frames(self):
-        self.table_fields = build_form(self.mode_frames["table"].layout(), [
-            ("num", "Units per location", 6),
-            ("loc", "Number of locations", 5),
-            ("q", "Q value (%)", 80.0),
-            ("lbound", "Lower bound (%)", 95.0),
-            ("cilevel", "Confidence level (%)", 95.0),
-            ("se_low", "Within-loc SD -- low", 1.0),
-            ("se_high", "Within-loc SD -- high", 5.0),
-            ("se_step", "Within-loc SD -- step", 1.0),
-            ("sm_low", "Between-loc SD -- low", 1.0),
-            ("sm_high", "Between-loc SD -- high", 5.0),
-            ("sm_step", "Between-loc SD -- step", 1.0),
-        ], registry=self.field_registry["table"])
+        self.table_fields = build_form(
+            self.mode_frames["table"].layout(),
+            [
+                ("num", "Units per location", 6),
+                ("loc", "Number of locations", 5),
+                ("q", "Q value (%)", 80.0),
+                ("lbound", "Lower bound (%)", 95.0),
+                ("cilevel", "Confidence level (%)", 95.0),
+                ("se_low", "Within-loc SD -- low", 1.0),
+                ("se_high", "Within-loc SD -- high", 5.0),
+                ("se_step", "Within-loc SD -- step", 1.0),
+                ("sm_low", "Between-loc SD -- low", 1.0),
+                ("sm_high", "Between-loc SD -- high", 5.0),
+                ("sm_step", "Between-loc SD -- step", 1.0),
+            ],
+            registry=self.field_registry["table"],
+        )
 
         lay = self.mode_frames["evaluate"].layout()
         desc = QLabel("Builds the table above, then evaluates:")
         desc.setObjectName("muted")
         desc.setWordWrap(True)
         lay.addWidget(desc, 0, 0, 1, 2)
-        self.eval_fields = build_form(lay, [
-            ("u_low", "True mean U -- low", 90.0),
-            ("u_high", "True mean U -- high", 100.0),
-            ("u_step", "True mean U -- step", 2.5),
-            ("sigse_low", "True within-loc SD -- low", 1.0),
-            ("sigse_high", "True within-loc SD -- high", 3.0),
-            ("sigse_step", "True within-loc SD -- step", 1.0),
-            ("sigsm_low", "True between-loc SD -- low", 1.0),
-            ("sigsm_high", "True between-loc SD -- high", 3.0),
-            ("sigsm_step", "True between-loc SD -- step", 1.0),
-        ], start_row=1, registry=self.field_registry["evaluate"])
+        self.eval_fields = build_form(
+            lay,
+            [
+                ("u_low", "True mean U -- low", 90.0),
+                ("u_high", "True mean U -- high", 100.0),
+                ("u_step", "True mean U -- step", 2.5),
+                ("sigse_low", "True within-loc SD -- low", 1.0),
+                ("sigse_high", "True within-loc SD -- high", 3.0),
+                ("sigse_step", "True within-loc SD -- step", 1.0),
+                ("sigsm_low", "True between-loc SD -- low", 1.0),
+                ("sigsm_high", "True between-loc SD -- high", 3.0),
+                ("sigsm_step", "True between-loc SD -- step", 1.0),
+            ],
+            start_row=1,
+            registry=self.field_registry["evaluate"],
+        )
 
-        self.sample_fields = build_form(self.mode_frames["sample"].layout(), [
-            ("mean", "Sample mean (%)", 90.0),
-            ("se", "Sample within-loc SD", 2.2),
-            ("sm", "Sample between-loc SD", 2.46),
-            ("num", "Units per location", 6),
-            ("loc", "Number of locations", 5),
-            ("q", "Q value (%)", 80.0),
-            ("cilevel", "Confidence level (%)", 95.0),
-        ], registry=self.field_registry["sample"])
+        self.sample_fields = build_form(
+            self.mode_frames["sample"].layout(),
+            [
+                ("mean", "Sample mean (%)", 90.0),
+                ("se", "Sample within-loc SD", 2.2),
+                ("sm", "Sample between-loc SD", 2.46),
+                ("num", "Units per location", 6),
+                ("loc", "Number of locations", 5),
+                ("q", "Q value (%)", 80.0),
+                ("cilevel", "Confidence level (%)", 95.0),
+            ],
+            registry=self.field_registry["sample"],
+        )
 
     def _table_args(self):
         v = self.table_fields
-        num = v["num"].get(int); loc = v["loc"].get(int)
-        q = v["q"].get(float); lbound = v["lbound"].get(float)
+        num = v["num"].get(int)
+        loc = v["loc"].get(int)
+        q = v["q"].get(float)
+        lbound = v["lbound"].get(float)
         cilevel = v["cilevel"].get(float)
-        se_vals = make_grid(v["se_low"].get(float), v["se_high"].get(float), v["se_step"].get(float), "SE")
-        sm_vals = make_grid(v["sm_low"].get(float), v["sm_high"].get(float), v["sm_step"].get(float), "SM")
+        se_vals = make_grid(
+            v["se_low"].get(float), v["se_high"].get(float), v["se_step"].get(float), "SE"
+        )
+        sm_vals = make_grid(
+            v["sm_low"].get(float), v["sm_high"].get(float), v["sm_step"].get(float), "SM"
+        )
         return num, loc, q, lbound, cilevel, se_vals, sm_vals
 
     def _run_table(self):
@@ -1884,18 +2198,31 @@ class Disp2Tab(BaseTab):
             self._table_cache[key] = table
             progress(1.0, "Table complete.")
             return table
+
         return job
 
     def _run_evaluate(self):
         num, loc, q, lbound, cilevel, se_vals, sm_vals = self._table_args()
         dse = se_vals[1] - se_vals[0] if len(se_vals) > 1 else 1.0
         dsm = sm_vals[1] - sm_vals[0] if len(sm_vals) > 1 else 1.0
-        u_vals = make_grid(self.eval_fields["u_low"].get(float), self.eval_fields["u_high"].get(float),
-                           self.eval_fields["u_step"].get(float), "U")
-        sigse_vals = make_grid(self.eval_fields["sigse_low"].get(float), self.eval_fields["sigse_high"].get(float),
-                               self.eval_fields["sigse_step"].get(float), "within-loc SD")
-        sigsm_vals = make_grid(self.eval_fields["sigsm_low"].get(float), self.eval_fields["sigsm_high"].get(float),
-                               self.eval_fields["sigsm_step"].get(float), "between-loc SD")
+        u_vals = make_grid(
+            self.eval_fields["u_low"].get(float),
+            self.eval_fields["u_high"].get(float),
+            self.eval_fields["u_step"].get(float),
+            "U",
+        )
+        sigse_vals = make_grid(
+            self.eval_fields["sigse_low"].get(float),
+            self.eval_fields["sigse_high"].get(float),
+            self.eval_fields["sigse_step"].get(float),
+            "within-loc SD",
+        )
+        sigsm_vals = make_grid(
+            self.eval_fields["sigsm_low"].get(float),
+            self.eval_fields["sigsm_high"].get(float),
+            self.eval_fields["sigsm_step"].get(float),
+            "between-loc SD",
+        )
         key = self._cache_key(num, loc, q, lbound, cilevel, se_vals, sm_vals)
 
         def job(progress):
@@ -1908,46 +2235,73 @@ class Disp2Tab(BaseTab):
             else:
                 progress(0.2, "Using cached table...")
             progress(0.6, "Evaluating probability grid...")
-            return disp2.probability_of_passing(table, num, loc, dse, dsm, u_vals, sigse_vals, sigsm_vals)
+            return disp2.probability_of_passing(
+                table, num, loc, dse, dsm, u_vals, sigse_vals, sigsm_vals
+            )
+
         return job
 
     def _run_sample(self):
         v = self.sample_fields
-        mean = v["mean"].get(float); se = v["se"].get(float); sm = v["sm"].get(float)
-        num = v["num"].get(int); loc = v["loc"].get(int)
-        q = v["q"].get(float); cilevel = v["cilevel"].get(float)
+        mean = v["mean"].get(float)
+        se = v["se"].get(float)
+        sm = v["sm"].get(float)
+        num = v["num"].get(int)
+        loc = v["loc"].get(int)
+        q = v["q"].get(float)
+        cilevel = v["cilevel"].get(float)
 
         def job(progress):
             progress(0.4, "Computing sample probability...")
             return disp2.sample_probability(mean, se, sm, num, loc, q, cilevel)
+
         return job
 
+    def _oc_available(self):
+        return True
 
-    def _oc_available(self): return True
     def _oc_context(self):
         v = self.table_fields
         num, loc = v["num"].get(int), v["loc"].get(int)
-        q = v["q"].get(float); lbound = v["lbound"].get(float); cilevel = v["cilevel"].get(float)
-        se_vals = make_grid(v["se_low"].get(float), v["se_high"].get(float), v["se_step"].get(float), "SE")
-        sm_vals = make_grid(v["sm_low"].get(float), v["sm_high"].get(float), v["sm_step"].get(float), "SM")
+        q = v["q"].get(float)
+        lbound = v["lbound"].get(float)
+        cilevel = v["cilevel"].get(float)
+        se_vals = make_grid(
+            v["se_low"].get(float), v["se_high"].get(float), v["se_step"].get(float), "SE"
+        )
+        sm_vals = make_grid(
+            v["sm_low"].get(float), v["sm_high"].get(float), v["sm_step"].get(float), "SM"
+        )
         dse = se_vals[1] - se_vals[0] if len(se_vals) > 1 else 1.0
         dsm = sm_vals[1] - sm_vals[0] if len(sm_vals) > 1 else 1.0
-        table = self._last_table if self._last_table is not None else  disp2.acceptance_limit_table(num, loc, q, lbound, cilevel, se_vals, sm_vals)
+        table = (
+            self._last_table
+            if self._last_table is not None
+            else disp2.acceptance_limit_table(num, loc, q, lbound, cilevel, se_vals, sm_vals)
+        )
 
         def computed(xk, xs, fx):
             U = [float(x) for x in xs] if xk == "u" else [fx["U"]]
             SE = [float(x) for x in xs] if xk == "se" else [fx["SE"]]
-            return _prob_series(disp2.probability_of_passing(table, num, loc, dse, dsm, U, SE, [fx["SM"]]))
+            return _prob_series(
+                disp2.probability_of_passing(table, num, loc, dse, dsm, U, SE, [fx["SM"]])
+            )
 
         def make_units(xk, x, fx, rng, reps):
             U = x if xk == "u" else fx["U"]
             SE = x if xk == "se" else fx["SE"]
             return U + rng.normal(0.0, fx["SM"], (reps, 1)) + rng.normal(0.0, SE, (reps, 24))
 
-        return make_oc_context("disp", q, computed, make_units,
+        return make_oc_context(
+            "disp",
+            q,
+            computed,
+            make_units,
             [("se", "True within-loc SD  [U, SM fixed]"), ("u", "True mean U  [SE, SM fixed]")],
             {"se": (0.5, 25.0, 0.5), "u": (70.0, 120.0, 2.0)},
-            {"se": [("U", 100.0), ("SM", 2.2)], "u": [("SE", 2.2), ("SM", 2.2)]})
+            {"se": [("U", 100.0), ("SM", 2.2)], "u": [("SE", 2.2), ("SM", 2.2)]},
+        )
+
 
 # ---------------------------------------------------------------------------
 # OC-curve engine (unified): Monte-Carlo probability of passing the
@@ -1971,49 +2325,50 @@ def _oc_cu_pass(units: np.ndarray, target: float) -> float:
     # --- Stage 1 (10 units) ---
     x1 = units[:, :10]
     m1, s1 = x1.mean(axis=1), x1.std(axis=1, ddof=1)
-    
+
     p1 = (np.abs(M(m1) - m1) + 2.4 * s1) <= 15.0
     passed |= p1
-    
+
     # --- Stage 2 (30 units) ---
     live = np.where(~p1)[0]
     if live.size:
         x30 = units[live]
         m2, s2 = x30.mean(axis=1), x30.std(axis=1, ddof=1)
         M2 = M(m2)
-        
+
         av_ok = (np.abs(M2 - m2) + 2.0 * s2) <= 15.0
         # FIXED: 0.25 * M2 instead of hardcoded 25.0
         within_ok = np.abs(x30 - M2[:, None]).max(axis=1) <= (0.25 * M2)
-        
+
         passed[live[av_ok & within_ok]] = True
 
     return float(passed.mean())
+
 
 def _oc_disp_pass(units, q):
     """Three-stage USP <711> decision. units: (reps, 24) -> P(pass)."""
     passed = np.zeros(units.shape[0], dtype=bool)
 
-    x6 = units[:, :6]                                   # Stage 1: all >= Q+5
+    x6 = units[:, :6]  # Stage 1: all >= Q+5
     p = np.all(x6 >= q + 5.0, axis=1)
     passed |= p
     live = np.where(~p)[0]
 
-    if live.size:                                       # Stage 2: 12 units
+    if live.size:  # Stage 2: 12 units
         x12 = units[live][:, :12]
         # FIXED: Changed > to >= for Q-15 boundary
         p = (x12.mean(axis=1) >= q) & np.all(x12 >= q - 15.0, axis=1)
         passed[live[p]] = True
         live = live[~p]
 
-    if live.size:                                       # Stage 3: 24 units
+    if live.size:  # Stage 3: 24 units
         x24 = units[live][:, :24]
         ok_mean = x24.mean(axis=1) >= q
         # FIXED: Changed <= to < to match "less than Q-15%"
         n_l15 = (x24 < q - 15.0).sum(axis=1)
         # FIXED: Changed <= to < to match "less than Q-25%"
         any_l25 = (x24 < q - 25.0).any(axis=1)
-        
+
         p = ok_mean & (n_l15 <= 2) & ~any_l25
         passed[live[p]] = True
 
@@ -2040,26 +2395,38 @@ def make_oc_context(test, ref, computed, make_units, x_choices, grid, fixed_spec
     def usp(xk, xs, fx, reps):
         out = []
         for x in xs:
-            rng = np.random.default_rng(12345)          # seeded -> reproducible
+            rng = np.random.default_rng(12345)  # seeded -> reproducible
             out.append(decision(make_units(xk, float(x), fx, rng, reps), ref))
         return np.array(out)
 
-    return {"test": test, "x_choices": x_choices, "grid": grid,
-            "fixed_specs": fixed_specs, "computed": computed, "usp": usp}
+    return {
+        "test": test,
+        "x_choices": x_choices,
+        "grid": grid,
+        "fixed_specs": fixed_specs,
+        "computed": computed,
+        "usp": usp,
+    }
 
 
 class OCDialog(QDialog):
     """OC curve: computed acceptance-limit plan vs the USP <905> test itself."""
 
-    def __init__(self, ctx, parent=None):
+    def __init__(self, ctx, parent=None, save_base=None):
         super().__init__(parent)
         self._ctx = ctx
-        self._usp_label = ("USP <905> two-stage test (Monte Carlo)" if ctx["test"] == "cu"
-                           else "USP <711> three-stage test (Monte Carlo)")
-        self._title = "OC Curve -- computed plan vs " + ("USP <905>" if ctx["test"] == "cu" else "USP <711>")
+        self._usp_label = (
+            "USP <905> two-stage test (Monte Carlo)"
+            if ctx["test"] == "cu"
+            else "USP <711> three-stage test (Monte Carlo)"
+        )
+        self._title = "OC Curve -- computed plan vs " + (
+            "USP <905>" if ctx["test"] == "cu" else "USP <711>"
+        )
         self.setWindowTitle(self._title)
         self.resize(900, 640)
         self.setModal(True)
+        self._save_base = save_base or "oc"
 
         lay = QVBoxLayout(self)
         top = QGridLayout()
@@ -2073,22 +2440,30 @@ class OCDialog(QDialog):
         for w in (self.g_lo, self.g_hi, self.g_st):
             w.setFixedWidth(70)
         row = QHBoxLayout()
-        row.addWidget(self.g_lo); row.addWidget(self.g_hi); row.addWidget(self.g_st)
+        row.addWidget(self.g_lo)
+        row.addWidget(self.g_hi)
+        row.addWidget(self.g_st)
         top.addLayout(row, 0, 3)
         top.addWidget(QLabel("MC reps:"), 0, 4)
-        self.rep_ed = QLineEdit("2000"); self.rep_ed.setFixedWidth(70)
+        self.rep_ed = QLineEdit("2000")
+        self.rep_ed.setFixedWidth(70)
         top.addWidget(self.rep_ed, 0, 5)
 
         self.fixed_box = QWidget()
         self.fixed_layout = QHBoxLayout(self.fixed_box)
         self.fixed_layout.setContentsMargins(0, 0, 0, 0)
-        redraw = QPushButton("Redraw"); redraw.setObjectName("accent")
+        redraw = QPushButton("Redraw")
+        redraw.setObjectName("accent")
         redraw.clicked.connect(self._redraw)
-        save = QPushButton("Save PNG"); save.clicked.connect(self._save_png)
-        close = QPushButton("Close"); close.clicked.connect(self.accept)
+        save = QPushButton("Save PNG")
+        save.clicked.connect(self._save_png)
+        close = QPushButton("Close")
+        close.clicked.connect(self.accept)
         wrap = QHBoxLayout()
         wrap.addWidget(self.fixed_box, 1)
-        wrap.addWidget(redraw); wrap.addWidget(save); wrap.addWidget(close)
+        wrap.addWidget(redraw)
+        wrap.addWidget(save)
+        wrap.addWidget(close)
         top.addLayout(wrap, 1, 0, 1, 6)
         lay.addLayout(top)
 
@@ -2112,11 +2487,14 @@ class OCDialog(QDialog):
         self.fixed_layout.addWidget(lbl)
         for name, d in self._ctx["fixed_specs"][xk]:
             self.fixed_layout.addWidget(QLabel(f"{name} ="))
-            ed = QLineEdit(str(d)); ed.setFixedWidth(70)
+            ed = QLineEdit(str(d))
+            ed.setFixedWidth(70)
             self.fixed_layout.addWidget(ed)
             self._fixed_edits[name] = ed
         lo, hi, st = self._ctx["grid"][xk]
-        self.g_lo.setText(str(lo)); self.g_hi.setText(str(hi)); self.g_st.setText(str(st))
+        self.g_lo.setText(str(lo))
+        self.g_hi.setText(str(hi))
+        self.g_st.setText(str(st))
 
     def _inputs(self):
         xk = self.x_cb.currentData()
@@ -2132,7 +2510,15 @@ class OCDialog(QDialog):
         p_usp = self._ctx["usp"](xk, xs, fx, reps)
         self._fig.clear()
         ax = self._fig.add_subplot(111)
-        ax.plot(xs, p_comp, "o-", color=SERIES_COLORS[0], lw=1.8, ms=4, label="Computed plan (acceptance-limit table)")
+        ax.plot(
+            xs,
+            p_comp,
+            "o-",
+            color=SERIES_COLORS[0],
+            lw=1.8,
+            ms=4,
+            label="Computed plan (acceptance-limit table)",
+        )
         ax.plot(xs, p_usp, "s--", color=SERIES_COLORS[2], lw=1.8, ms=4, label=self._usp_label)
         for t in (0.8, 0.9):
             ax.axhline(t, ls=":", lw=0.8, color="0.5")
@@ -2146,7 +2532,9 @@ class OCDialog(QDialog):
         self._canvas.draw()
 
     def _save_png(self):
-        path, _ = QFileDialog.getSaveFileName(self, "Save figure", "oc_curve.png", "PNG image (*.png)")
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save figure", self._save_base + ".png", "PNG image (*.png)"
+        )
         if path:
             self._fig.savefig(path, dpi=150)
             QMessageBox.information(self, "Saved", f"Figure saved to {path}")
@@ -2156,9 +2544,9 @@ class SplashScreen(QDialog):
     """Frameless startup splash: logo, note, progress bar, developer footer."""
 
     def __init__(self):
-        super().__init__(None,
-                         Qt.WindowType.FramelessWindowHint |
-                         Qt.WindowType.WindowStaysOnTopHint)
+        super().__init__(
+            None, Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint
+        )
         self.setFixedSize(620, 400)
         self.setStyleSheet("""
             QDialog      { background:#0d2b55; }
@@ -2169,7 +2557,7 @@ class SplashScreen(QDialog):
             #foot  { color:#bcd4f5; font-size:9pt; }
             #foot a{ color:#4da3ff; }
             QProgressBar { background:#123a6e; border:0; border-radius:5px;
-                           height:10px; }
+                           height:10px; text-align: center; }
             QProgressBar::chunk { background:#4da3ff; border-radius:5px; }
         """)
         lay = QVBoxLayout(self)
@@ -2182,28 +2570,36 @@ class SplashScreen(QDialog):
             if not pix.isNull():
                 if pix.height() > 96:
                     pix = pix.scaledToHeight(96, Qt.TransformationMode.SmoothTransformation)
-                ll = QLabel(); ll.setPixmap(pix); ll.setAlignment(center)
+                ll = QLabel()
+                ll.setPixmap(pix)
+                ll.setAlignment(center)
                 lay.addWidget(ll)
 
-        t = QLabel("PyCuDAL"); t.setObjectName("title"); t.setAlignment(center)
+        t = QLabel("PyCuDAL")
+        t.setObjectName("title")
+        t.setAlignment(center)
         lay.addWidget(t)
-        n = QLabel("Parametric acceptance limits for USP <905> Content\n"
-                   "Uniformity and USP <711> Dissolution")
-        n.setObjectName("note"); n.setAlignment(center)
+        n = QLabel(
+            "Parametric acceptance limits for USP <905> Content\n"
+            "Uniformity and USP <711> Dissolution"
+        )
+        n.setObjectName("note")
+        n.setAlignment(center)
         lay.addWidget(n)
         lay.addSpacing(14)
 
-        self.bar = QProgressBar(); self.bar.setRange(0, 100)
+        self.bar = QProgressBar()
+        self.bar.setRange(0, 100)
         lay.addWidget(self.bar)
-        self.status = QLabel("Starting…"); self.status.setObjectName("status")
+        self.status = QLabel("Starting…")
+        self.status.setObjectName("status")
         self.status.setAlignment(center)
         lay.addWidget(self.status)
         lay.addStretch(1)
 
-        foot = QLabel('Program developed by: '
-                      f'<a href="{REPO_URL}">Moaz El-Essawey</a>')
+        foot = QLabel(f'Program developed by: <a href="{REPO_URL}">Moaz El-Essawey</a>')
         foot.setObjectName("foot")
-        foot.setOpenExternalLinks(True)          # click opens the GitHub repo
+        foot.setOpenExternalLinks(True)  # click opens the GitHub repo
         foot.setAlignment(center)
         lay.addWidget(foot)
 
@@ -2228,15 +2624,21 @@ def _load_libraries(splash=None):
 
     step(0.05, "Loading NumPy…")
     import numpy as _np
+
     np = _np
 
     step(0.20, "Loading Pandas…")
     import pandas as _pd
+
     pd = _pd
 
     step(0.40, "Loading CuDAL core…")
     try:
-        from cudal import cusp1 as _a, cusp2 as _b, disp1 as _c, disp2 as _d
+        from cudal import cusp1 as _a
+        from cudal import cusp2 as _b
+        from cudal import disp1 as _c
+        from cudal import disp2 as _d
+
         cusp1, cusp2, disp1, disp2 = _a, _b, _c, _d
         HAVE_CUDAL = True
     except Exception:
@@ -2245,6 +2647,7 @@ def _load_libraries(splash=None):
     step(0.60, "Loading SciPy…")
     try:
         from scipy.interpolate import make_interp_spline as _mis
+
         make_interp_spline = _mis
         HAVE_SPLINE = True
     except Exception:
@@ -2252,9 +2655,10 @@ def _load_libraries(splash=None):
 
     step(0.75, "Loading Matplotlib…")
     try:
+        from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as _C
+        from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as _T
         from matplotlib.figure import Figure as _F
-        from matplotlib.backends.backend_qtagg import (
-            FigureCanvasQTAgg as _C, NavigationToolbar2QT as _T)
+
         Figure, FigureCanvas, NavigationToolbar = _F, _C, _T
         HAVE_MPL = True
     except Exception:
@@ -2263,11 +2667,13 @@ def _load_libraries(splash=None):
     step(0.90, "Loading export engines…")
     try:
         import openpyxl  # noqa: F401
+
         HAVE_XLSX = True
     except Exception:
         HAVE_XLSX = False
 
     step(1.0, "Ready.")
+
 
 # ---------------------------------------------------------------------------
 # Main window
@@ -2295,14 +2701,17 @@ class CudalApp(QMainWindow):
             pix = QPixmap(logo_file)
             if not pix.isNull():
                 logo_lbl = QLabel()
-                logo_lbl.setPixmap(pix.scaledToHeight(
-                    40, Qt.TransformationMode.SmoothTransformation))
+                logo_lbl.setPixmap(
+                    pix.scaledToHeight(40, Qt.TransformationMode.SmoothTransformation)
+                )
                 header.addWidget(logo_lbl)
         else:
             t = QLabel("CuDAL")
             t.setObjectName("header")
-        s = QLabel("   Parametric acceptance limits for USP <905> Content Uniformity "
-                   "and USP <711> Dissolution")
+        s = QLabel(
+            "   Parametric acceptance limits for USP <905> Content Uniformity "
+            "and USP <711> Dissolution"
+        )
         s.setObjectName("subheader")
         if not logo_file:
             header.addWidget(t)
@@ -2313,36 +2722,144 @@ class CudalApp(QMainWindow):
         # ---- tabs ---------------------------------------------------------------
         self.notebook = QTabWidget()
         self.tabs = [Cusp1Tab(), Cusp2Tab(), Disp1Tab(), Disp2Tab()]
-        for tab, text in zip(self.tabs,
-                             ["Content Uniformity -- Plan 1", "Content Uniformity -- Plan 2",
-                              "Dissolution -- Plan 1", "Dissolution -- Plan 2"]):
+        for tab, text in zip(
+            self.tabs,
+            [
+                "Content Uniformity -- Plan 1",
+                "Content Uniformity -- Plan 2",
+                "Dissolution -- Plan 1",
+                "Dissolution -- Plan 2",
+            ],
+        ):
             self.notebook.addTab(tab, text)
         outer.addWidget(self.notebook, 1)
 
-        # ---- menu ---------------------------------------------------------------
+        # ---- comprehensive menu bar ----------------------------------------
         menubar = self.menuBar()
+
         filem = menubar.addMenu("&File")
-        a = QAction("Export current results (CSV)", self)
+        a = filem.addAction("Export current results (CSV)")
         a.setShortcut(QKeySequence("Ctrl+E"))
         a.triggered.connect(self._export_current_csv)
-        filem.addAction(a)
-        a = QAction("Export all results (XLSX)", self)
+        a = filem.addAction("Export current results (PDF)")
+        a.triggered.connect(self._export_current_pdf)
+        a = filem.addAction("Export all results (XLSX)")
         a.triggered.connect(self._export_all_xlsx)
-        filem.addAction(a)
         filem.addSeparator()
-        a = QAction("Exit", self)
+        a = filem.addAction("Save settings now")
+        a.setShortcut(QKeySequence("Ctrl+S"))
+        a.triggered.connect(self._save_settings_now)
+        filem.addSeparator()
+        a = filem.addAction("Exit")
+        a.setShortcut(QKeySequence("Ctrl+Q"))
         a.triggered.connect(self.close)
-        filem.addAction(a)
+
+        runm = menubar.addMenu("&Run")
+        a = runm.addAction("Run analysis")
+        a.setShortcut(QKeySequence("Ctrl+R"))
+        a.triggered.connect(lambda: self._current_tab()._on_run())
+        a = runm.addAction("Reset parameters")
+        a.triggered.connect(lambda: self._current_tab()._reset_defaults())
+        runm.addSeparator()
+        a = runm.addAction("Plot results")
+        a.setShortcut(QKeySequence("Ctrl+P"))
+        a.triggered.connect(lambda: self._current_tab().results._show_plot())
+        a = runm.addAction("OC curve\u2026")
+        a.setShortcut(QKeySequence("Ctrl+O"))
+        a.triggered.connect(self._show_oc_current)
+        runm.addSeparator()
+        a = runm.addAction("Copy selection")
+        a.setShortcut(QKeySequence.Copy)
+        a.triggered.connect(self._copy_current_selection)
+        a = runm.addAction("Clear results")
+        a.triggered.connect(lambda: self._current_tab().results.clear())
+
+        viewm = menubar.addMenu("&View")
+        for i, label in enumerate(
+            (
+                "Content Uniformity \u2013 Plan 1",
+                "Content Uniformity \u2013 Plan 2",
+                "Dissolution \u2013 Plan 1",
+                "Dissolution \u2013 Plan 2",
+            )
+        ):
+            a = viewm.addAction(label)
+            a.setShortcut(QKeySequence(f"Ctrl+{i + 1}"))
+            a.triggered.connect(lambda _=False, i=i: self.notebook.setCurrentIndex(i))
+
         helpm = menubar.addMenu("&Help")
-        a = QAction("About / Help", self)
+        a = helpm.addAction("Documentation (online)")
+        a.triggered.connect(lambda: QDesktopServices.openUrl(QUrl(REPO_URL)))
+        a = helpm.addAction("Report an issue")
+        a.triggered.connect(lambda: QDesktopServices.openUrl(QUrl(REPO_URL + "/issues")))
+        helpm.addSeparator()
+        a = helpm.addAction("About / Help")
         a.setShortcut(QKeySequence("F1"))
         a.triggered.connect(self._show_about)
-        helpm.addAction(a)
 
-        # ---- shortcuts ------------------------------------------------------------
-        QShortcut(QKeySequence("Ctrl+R"), self, activated=lambda: self._current_tab()._on_run())
-        QShortcut(QKeySequence("Ctrl+P"), self,
-                  activated=lambda: self._current_tab().results._show_plot())
+        # ---- action toolbar --------------------------------------------------
+        toolbar = self.addToolBar("Main")
+        toolbar.setMovable(False)
+        toolbar.setFloatable(False)
+        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        toolbar.setIconSize(QSize(18, 18))
+
+        def _glyph_icon(glyph, color=ACCENT_DARK):
+            px = QPixmap(18, 18)
+            px.fill(Qt.GlobalColor.transparent)
+            p = QPainter(px)
+            p.setPen(QColor(color))
+            f = QFont("Segoe UI Symbol", 11)
+            f.setBold(True)
+            p.setFont(f)
+            p.drawText(px.rect(), Qt.AlignmentFlag.AlignCenter, glyph)
+            p.end()
+            return QIcon(px)
+
+        def add_tool(text, glyph, slot, tip):
+            a = QAction(_glyph_icon(glyph), text, self)
+            a.triggered.connect(slot)
+            a.setToolTip(tip)
+            toolbar.addAction(a)
+            return a
+
+        add_tool(
+            "Run",
+            "\u25b6",
+            lambda: self._current_tab()._on_run(),
+            "Run the selected analysis (Ctrl+R)",
+        )
+        add_tool(
+            "Plot",
+            "\u223f",
+            lambda: self._current_tab().results._show_plot(),
+            "Plot results (Ctrl+P)",
+        )
+        add_tool(
+            "OC Curve",
+            "\u2277",
+            self._show_oc_current,
+            "OC curve: computed plan vs USP test (Ctrl+O)",
+        )
+        add_tool(
+            "CSV", "\u2913", self._export_current_csv, "Export current results to CSV (Ctrl+E)"
+        )
+        add_tool(
+            "PDF", "\u2261", self._export_current_pdf, "Export current results to SAS-style PDF"
+        )
+        add_tool("XLSX", "\u25a6", self._export_all_xlsx, "Export all results to Excel")
+        add_tool(
+            "Reset",
+            "\u21ba",
+            lambda: self._current_tab()._reset_defaults(),
+            "Reset parameters to defaults",
+        )
+        add_tool("About", "?", self._show_about, "About PyCuDAL (F1)")
+
+        # # ---- shortcuts ------------------------------------------------------------
+        # QShortcut(QKeySequence("Ctrl+R"), self, activated=lambda: self._current_tab()._on_run())
+        # QShortcut(QKeySequence("Ctrl+P"), self,
+        #           activated=lambda: self._current_tab().results._show_plot())
 
         # ---- restore persisted state --------------------------------------------
         for tab in self.tabs:
@@ -2356,7 +2873,16 @@ class CudalApp(QMainWindow):
         if isinstance(g, (list, tuple)) and len(g) == 4:
             self.setGeometry(int(g[0]), int(g[1]), int(g[2]), int(g[3]))
 
+        # ---- footer / status bar ------------------------------------------------
         self.statusBar().showMessage("Ready.")
+        credit_lbl = QLabel(
+            'Created by <a href="https://github.com/moazelessawey/pycudal" '
+            'style="color: #2f6fed; text-decoration: none;">Moaz El-Essawey</a>'
+        )
+        credit_lbl.setOpenExternalLinks(True)
+        credit_lbl.setTextFormat(Qt.TextFormat.RichText)
+        credit_lbl.setStyleSheet("margin-right: 10px; font-size: 9pt;")
+        self.statusBar().addPermanentWidget(credit_lbl)
 
     # -- helpers ---------------------------------------------------------------------
     def _current_tab(self):
@@ -2365,7 +2891,7 @@ class CudalApp(QMainWindow):
     @staticmethod
     def _load_settings():
         try:
-            with open(SETTINGS_PATH, "r", encoding="utf-8") as fh:
+            with open(SETTINGS_PATH, encoding="utf-8") as fh:
                 return json.load(fh)
         except Exception:
             return {}
@@ -2392,16 +2918,26 @@ class CudalApp(QMainWindow):
 
     def _export_all_xlsx(self):
         if not HAVE_XLSX:
-            QMessageBox.critical(self, "Excel export unavailable",
-                                 "openpyxl is required.\nInstall it with:  pip install openpyxl")
+            QMessageBox.critical(
+                self,
+                "Excel export unavailable",
+                "openpyxl is required.\nInstall it with:  pip install openpyxl",
+            )
             return
-        sheets = {tab.__class__.__name__: tab.results._df
-                  for tab in self.tabs if tab.results._df is not None}
+        sheets = {
+            tab.__class__.__name__: tab.results._df
+            for tab in self.tabs
+            if tab.results._df is not None
+        }
         if not sheets:
             QMessageBox.information(self, "Nothing to export", "Run at least one analysis first.")
             return
-        path, _ = QFileDialog.getSaveFileName(self, "Export all results", "cudal_results.xlsx",
-                                              "Excel workbook (*.xlsx)")
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export all results",
+            f"PyCuDAL-all-results-{time.strftime('%Y%m%d-%H%M')}.xlsx",
+            "Excel workbook (*.xlsx)",
+        )
         if not path:
             return
         with pd.ExcelWriter(path, engine="openpyxl") as writer:
@@ -2409,23 +2945,58 @@ class CudalApp(QMainWindow):
                 df.to_excel(writer, sheet_name=name[:31], index=False)
         QMessageBox.information(self, "Exported", f"Saved {len(sheets)} sheet(s) to {path}")
 
+    # -- top-bar dispatchers (guarded for optional features) ------------------
+    def _export_current_pdf(self):
+        r = self._current_tab().results
+        if hasattr(r, "_export_pdf"):
+            r._export_pdf()
+        else:
+            QMessageBox.information(
+                self, "Unavailable", "PDF export is not included in this build."
+            )
+
+    def _show_oc_current(self):
+        t = self._current_tab()
+        if hasattr(t, "_show_oc"):
+            t._show_oc()
+        else:
+            QMessageBox.information(
+                self, "Unavailable", "OC curves are not included in this build."
+            )
+
+    def _copy_current_selection(self):
+        r = self._current_tab().results
+        if hasattr(r, "_copy_selection"):
+            r._copy_selection()
+
+    def _save_settings_now(self):
+        self._save_settings()
+        self.statusBar().showMessage("Settings saved.", 3000)
+
     def _show_about(self):
-        deps = (f"matplotlib: {'yes' if HAVE_MPL else 'no'}\n"
-                f"scipy splines: {'yes' if HAVE_SPLINE else 'no'}\n"
-                f"openpyxl (xlsx): {'yes' if HAVE_XLSX else 'no'}")
-        QMessageBox.about(
-            self, "About CuDAL",
-            f"CuDAL GUI {VERSION}\n\n"
+        deps = (
+            f"matplotlib: {'yes' if HAVE_MPL else 'no'}\n"
+            f"scipy splines: {'yes' if HAVE_SPLINE else 'no'}\n"
+            f"openpyxl (xlsx): {'yes' if HAVE_XLSX else 'no'}"
+        )
+        about_text = (
+            f"PyCuDAL v{VERSION}\n\n"
             "Parametric acceptance limits for USP <905> Content Uniformity\n"
-            "and USP <711> Dissolution (mirrors SAS CALCUSPx/CALDISPx,\n"
-            "EVCUSPx/EVDISPx, SMPCUSPx/SMPDISPx).\n\n"
+            "and USP <711> Dissolution.\n\n"
+            "This tool mirrors the functionality of the original SAS programs\n"
+            "(CALCUSPx/CALDISPx, EVCUSPx/EVDISPx, SMPCUSPx/SMPDISPx)\n"
+            "developed by James Bergum, Ph.D.\n\n"
+            "Created & Maintained by: Moaz El-Essawey\n"
+            "GitHub: https://github.com/moazelessawey/pycudal\n\n"
             "Shortcuts:\n"
             "  Ctrl+R  run analysis\n"
             "  Ctrl+E  export current results (CSV)\n"
             "  Ctrl+P  plot results\n"
             "  Ctrl+C  copy selected table rows\n"
             "  F1      this dialog\n\n"
-            f"Optional dependencies:\n{deps}")
+            f"Optional dependencies:\n{deps}"
+        )
+        QMessageBox.about(self, "About PyCuDAL", about_text)
 
 
 # ---------------------------------------------------------------------------
@@ -2462,10 +3033,12 @@ def main():
     if not HAVE_CUDAL:
         splash.close()
         QMessageBox.critical(
-            None, "Missing dependency",
+            None,
+            "Missing dependency",
             "The `cudal` package could not be imported.\n"
             "Put this script next to the `cudal` package folder\n"
-            "or install it, then restart the GUI.")
+            "or install it, then restart the GUI.",
+        )
         sys.exit(1)
 
     family = _register_local_fonts()
@@ -2477,8 +3050,9 @@ def main():
         try:
             fdir = resource_path("fonts")
             if os.path.isdir(fdir):
-                from matplotlib import font_manager as fm
                 import matplotlib as mpl
+                from matplotlib import font_manager as fm
+
                 for f in os.listdir(fdir):
                     if f.lower().endswith((".ttf", ".otf")):
                         fm.fontManager.addfont(os.path.join(fdir, f))
@@ -2490,6 +3064,7 @@ def main():
     win.show()
     splash.close()
     sys.exit(app.exec())
+
 
 if __name__ == "__main__":
     main()

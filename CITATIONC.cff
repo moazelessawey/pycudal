@@ -1,0 +1,33 @@
+cff-version: 1.2.0
+title: "PyCuDAL: parametric acceptance limits for USP <905> and USP <711>"
+message: "If you use this software, please cite it as below."
+type: software
+license: MIT
+repository-code: "https://github.com/moazelessawey/pycudal"
+version: "1.0.8"
+authors:
+  - family-names: El-Essawey
+    given-names: Moaz
+  - family-names: Bergum
+    given-names: James
+    note: "Original SAS CuDAL methodology and implementation (2007)."
+references:
+  - type: article
+    title: "Constructing Acceptance Limits for Multiple Stage Tests"
+    authors:
+      - family-names: Bergum
+        given-names: J. S.
+    year: 1990
+    journal: "Drug Development and Industrial Pharmacy"
+    volume: 16
+    issue: 14
+    pages: "2153-2166"
+  - type: article
+    title: "Acceptance Limits for the New ICH USP 29 Content Uniformity Test"
+    authors:
+      - family-names: Bergum
+        given-names: J.
+      - family-names: Li
+        given-names: H.
+    year: 2007
+    journal: "Pharmaceutical Technology"

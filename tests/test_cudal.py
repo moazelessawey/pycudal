@@ -5,7 +5,7 @@ confirm every function runs, returns probabilities in [0, 1], and shows
 the expected qualitative behaviour (e.g. tighter variability => higher
 pass probability; boundary tables are widest near the target/Q value).
 """
-import numpy as np
+
 from cudal import cusp1, cusp2, disp1, disp2
 from cudal.core import content_uniformity_bound, dissolution_bound
 
@@ -29,8 +29,9 @@ def test_core():
 
 
 def test_cusp1():
-    tab = cusp1.acceptance_limit_table(number=10, target=100, lbound=95, cilevel=95,
-                                        mean_low=95, mean_high=105, mean_step=1.0)
+    tab = cusp1.acceptance_limit_table(
+        number=10, target=100, lbound=95, cilevel=95, mean_low=95, mean_high=105, mean_step=1.0
+    )
     assert (tab["CV"] >= 0).all()
     peak_row = tab.loc[tab["CV"].idxmax()]
     assert 98 <= peak_row["MEAN"] <= 102, "CV boundary should peak near the target"
@@ -40,8 +41,9 @@ def test_cusp1():
 
 
 def test_cusp2():
-    tab = cusp2.acceptance_limit_table(num=6, loc=10, target=100, lbound=95, cilevel=95,
-                                        se_values=[1, 2], sm_values=[1, 2])
+    tab = cusp2.acceptance_limit_table(
+        num=6, loc=10, target=100, lbound=95, cilevel=95, se_values=[1, 2], sm_values=[1, 2]
+    )
     ok = tab.dropna()
     assert (ok["MEANU"] > ok["MEANL"]).all()
 
@@ -59,8 +61,9 @@ def test_disp1():
 
 
 def test_disp2():
-    tab = disp2.acceptance_limit_table(num=6, loc=5, q=80, lbound=95, cilevel=95,
-                                        se_values=[2, 3], sm_values=[2, 3])
+    tab = disp2.acceptance_limit_table(
+        num=6, loc=5, q=80, lbound=95, cilevel=95, se_values=[2, 3], sm_values=[2, 3]
+    )
     assert tab["MEAN"].notna().any()
 
     r = disp2.sample_probability(mean=90, se=2.2, sm=2.46, num=6, loc=5, q=80, cilevel=95)

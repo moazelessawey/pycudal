@@ -25,7 +25,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from .core import probit, cinv, probnorm, probchi, dissolution_bound, batched_root_find
+from .core import batched_root_find, cinv, dissolution_bound, probchi, probit, probnorm
 from .cusp2 import _variance_components
 
 
@@ -62,8 +62,9 @@ def acceptance_limit_table(
     lo, hi = meanadj_search_range
     hi = min(hi, lim)
 
-    se_grid, sm_grid = np.meshgrid(np.asarray(se_values, dtype=float),
-                                    np.asarray(sm_values, dtype=float), indexing="ij")
+    se_grid, sm_grid = np.meshgrid(
+        np.asarray(se_values, dtype=float), np.asarray(sm_values, dtype=float), indexing="ij"
+    )
     se_flat = se_grid.ravel()
     sm_flat = sm_grid.ravel()
 
@@ -115,25 +116,33 @@ def probability_of_passing(
     sigse = np.asarray(sigse_values, dtype=float)[None, None, :, None]
     sigsm = np.asarray(sigsm_values, dtype=float)[None, None, None, :]
 
-    expse2 = sigse ** 2
-    expsm2 = expse2 + nn * sigsm ** 2
+    expse2 = sigse**2
+    expsm2 = expse2 + nn * sigsm**2
 
     pmean = 1 - probnorm((mean - u) * np.sqrt(n / expsm2))
-    pse = probchi(l * (nn - 1) * se ** 2 / expse2, l * (nn - 1)) - probchi(
+    pse = probchi(l * (nn - 1) * se**2 / expse2, l * (nn - 1)) - probchi(
         l * (nn - 1) * (se - dse) ** 2 / expse2, l * (nn - 1)
     )
-    psm = probchi((l - 1) * nn * sm ** 2 / expsm2, l - 1) - probchi(
+    psm = probchi((l - 1) * nn * sm**2 / expsm2, l - 1) - probchi(
         (l - 1) * nn * (sm - dsm) ** 2 / expsm2, l - 1
     )
 
     psum = np.sum(pmean * pse * psm, axis=0)  # (U, SIGSE, SIGSM)
 
-    uu, ee, mm = np.meshgrid(np.asarray(u_values, dtype=float),
-                              np.asarray(sigse_values, dtype=float),
-                              np.asarray(sigsm_values, dtype=float), indexing="ij")
-    return pd.DataFrame({
-        "U": uu.ravel(), "SIGSE": ee.ravel(), "SIGSM": mm.ravel(), "PSUM": psum.ravel(),
-    })
+    uu, ee, mm = np.meshgrid(
+        np.asarray(u_values, dtype=float),
+        np.asarray(sigse_values, dtype=float),
+        np.asarray(sigsm_values, dtype=float),
+        indexing="ij",
+    )
+    return pd.DataFrame(
+        {
+            "U": uu.ravel(),
+            "SIGSE": ee.ravel(),
+            "SIGSM": mm.ravel(),
+            "PSUM": psum.ravel(),
+        }
+    )
 
 
 def sample_probability(
@@ -167,7 +176,11 @@ def sample_probability(
     overbd = dissolution_bound(llu, sigma)
 
     return {
-        "MEAN": mean, "SE": se, "SM": sm,
-        "VAR": var, "MVAR": mvar, "SIGMA": sigma,
+        "MEAN": mean,
+        "SE": se,
+        "SM": sm,
+        "VAR": var,
+        "MVAR": mvar,
+        "SIGMA": sigma,
         "OVERBD": overbd,
     }

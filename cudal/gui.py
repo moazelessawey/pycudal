@@ -44,10 +44,10 @@ import queue
 import sys
 import threading
 import time
+import tkinter as tk
 import traceback
 import webbrowser
-import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import filedialog, messagebox, ttk
 
 # Heavy / optional dependencies are imported in stages by _load_libraries()
 # so the splash screen can show genuine loading progress.
@@ -63,7 +63,7 @@ REPO_URL = "https://github.com/moazelessawey/pycudal"
 # ---------------------------------------------------------------------------
 # Visual style / constants
 # ---------------------------------------------------------------------------
-VERSION = "1.0.7"
+VERSION = "1.0.8"
 
 BG = "#eef1f7"
 PANEL_BG = "#ffffff"
@@ -83,8 +83,7 @@ FONT_FAMILY = "helvetica"  # resolved to a native-looking font in setup_style()
 
 TABLE_FONT_SIZE = 12  # integer on purpose (fractional sizes break some Tk builds)
 
-SERIES_COLORS = [ACCENT, OK_GREEN, ERR_RED, "#8e44ad",
-                 "#e67e22", "#16a085", "#c2417d", "#5b6470"]
+SERIES_COLORS = [ACCENT, OK_GREEN, ERR_RED, "#8e44ad", "#e67e22", "#16a085", "#c2417d", "#5b6470"]
 
 
 def _resolve_font_family(root: tk.Tk) -> str:
@@ -105,16 +104,22 @@ def _resolve_font_family(root: tk.Tk) -> str:
     elif sys.platform == "darwin":
         preferred = ["SF Pro Text", "Helvetica Neue", "Helvetica"]
     else:  # Linux / other Unix desktops
-        preferred = ["Ubuntu", "Noto Sans", "DejaVu Sans", "Cantarell",
-                     "Liberation Sans", "courier"]
+        preferred = [
+            "Ubuntu",
+            "Noto Sans",
+            "DejaVu Sans",
+            "Cantarell",
+            "Liberation Sans",
+            "courier",
+        ]
 
     for family in preferred:
         if family in available:
             return family
     return "TkDefaultFont"
 
-SETTINGS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                             "cudal_gui_settings.json")
+
+SETTINGS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cudal_gui_settings.json")
 
 
 def setup_style(root: tk.Tk) -> None:
@@ -136,9 +141,16 @@ def setup_style(root: tk.Tk) -> None:
     base_font = (FONT_FAMILY, 10)
     bold_font = (FONT_FAMILY, 10, "bold")
 
-    style.configure(".", background=BG, foreground=TEXT, font=base_font,
-                    bordercolor=BORDER, lightcolor=BORDER, darkcolor=BORDER,
-                    focuscolor=ACCENT)
+    style.configure(
+        ".",
+        background=BG,
+        foreground=TEXT,
+        font=base_font,
+        bordercolor=BORDER,
+        lightcolor=BORDER,
+        darkcolor=BORDER,
+        focuscolor=ACCENT,
+    )
     style.configure("TFrame", background=BG)
     style.configure("Panel.TFrame", background=PANEL_BG)
     style.configure("TLabel", background=BG, foreground=TEXT)
@@ -146,76 +158,168 @@ def setup_style(root: tk.Tk) -> None:
     style.configure("Muted.TLabel", background=PANEL_BG, foreground=MUTED, font=(FONT_FAMILY, 9))
     style.configure("Header.TLabel", background=BG, foreground=TEXT, font=(FONT_FAMILY, 17, "bold"))
     style.configure("SubHeader.TLabel", background=BG, foreground=MUTED, font=(FONT_FAMILY, 10))
-    style.configure("SectionTitle.TLabel", background=PANEL_BG, foreground=ACCENT_DARK,
-                    font=(FONT_FAMILY, 11, "bold"))
+    style.configure(
+        "SectionTitle.TLabel",
+        background=PANEL_BG,
+        foreground=ACCENT_DARK,
+        font=(FONT_FAMILY, 11, "bold"),
+    )
 
     # ---- notebook / tabs --------------------------------------------------
     style.configure("TNotebook", background=BG, borderwidth=0, tabmargins=(10, 10, 10, 0))
-    style.configure("TNotebook.Tab", padding=(18, 9), font=bold_font,
-                    background="#dee4ee", foreground=MUTED, borderwidth=0)
-    style.map("TNotebook.Tab",
-              background=[("selected", PANEL_BG), ("active", "#e8ecf3")],
-              foreground=[("selected", ACCENT_DARK), ("active", TEXT)],
-              expand=[("selected", (2, 2, 2, 0))])
+    style.configure(
+        "TNotebook.Tab",
+        padding=(18, 9),
+        font=bold_font,
+        background="#dee4ee",
+        foreground=MUTED,
+        borderwidth=0,
+    )
+    style.map(
+        "TNotebook.Tab",
+        background=[("selected", PANEL_BG), ("active", "#e8ecf3")],
+        foreground=[("selected", ACCENT_DARK), ("active", TEXT)],
+        expand=[("selected", (2, 2, 2, 0))],
+    )
 
     # ---- inputs -------------------------------------------------------------
     style.configure("TRadiobutton", background=PANEL_BG, foreground=TEXT, font=base_font)
     style.map("TRadiobutton", background=[("active", PANEL_BG)])
     style.configure("TCheckbutton", background=PANEL_BG, foreground=TEXT, font=base_font)
     style.map("TCheckbutton", background=[("active", PANEL_BG)])
-    style.configure("TEntry", fieldbackground="white", foreground=TEXT,
-                    bordercolor=BORDER, lightcolor=BORDER, darkcolor=BORDER,
-                    padding=5, insertcolor=TEXT)
-    style.map("TEntry",
-              bordercolor=[("focus", ACCENT)],
-              lightcolor=[("focus", ACCENT)],
-              darkcolor=[("focus", ACCENT)])
-    style.configure("Invalid.TEntry", fieldbackground="#fdecea", foreground=ERR_RED,
-                    bordercolor=ERR_RED, lightcolor=ERR_RED, darkcolor=ERR_RED, padding=5)
-    style.configure("TLabelframe", background=PANEL_BG, bordercolor=BORDER,
-                    lightcolor=BORDER, darkcolor=BORDER, borderwidth=1)
-    style.configure("TLabelframe.Label", background=PANEL_BG, foreground=ACCENT_DARK,
-                    font=bold_font)
+    style.configure(
+        "TEntry",
+        fieldbackground="white",
+        foreground=TEXT,
+        bordercolor=BORDER,
+        lightcolor=BORDER,
+        darkcolor=BORDER,
+        padding=5,
+        insertcolor=TEXT,
+    )
+    style.map(
+        "TEntry",
+        bordercolor=[("focus", ACCENT)],
+        lightcolor=[("focus", ACCENT)],
+        darkcolor=[("focus", ACCENT)],
+    )
+    style.configure(
+        "Invalid.TEntry",
+        fieldbackground="#fdecea",
+        foreground=ERR_RED,
+        bordercolor=ERR_RED,
+        lightcolor=ERR_RED,
+        darkcolor=ERR_RED,
+        padding=5,
+    )
+    style.configure(
+        "TLabelframe",
+        background=PANEL_BG,
+        bordercolor=BORDER,
+        lightcolor=BORDER,
+        darkcolor=BORDER,
+        borderwidth=1,
+    )
+    style.configure(
+        "TLabelframe.Label", background=PANEL_BG, foreground=ACCENT_DARK, font=bold_font
+    )
 
     # ---- buttons -------------------------------------------------------------
-    style.configure("Accent.TButton", background=ACCENT, foreground="white",
-                    font=bold_font, padding=(16, 9), borderwidth=0, focusthickness=0)
-    style.map("Accent.TButton",
-              background=[("disabled", "#a9c1f2"), ("pressed", ACCENT_DARK), ("active", ACCENT_DARK)],
-              foreground=[("disabled", "white")],
-              relief=[("pressed", "sunken"), ("!pressed", "flat")])
-    style.configure("Secondary.TButton", background="#e7ebf2", foreground=TEXT,
-                    font=(FONT_FAMILY, 9), padding=(11, 7), borderwidth=0, focusthickness=0)
-    style.map("Secondary.TButton",
-              background=[("disabled", "#f1f3f7"), ("pressed", "#cfd6e2"), ("active", "#dbe1eb")],
-              foreground=[("disabled", MUTED)])
+    style.configure(
+        "Accent.TButton",
+        background=ACCENT,
+        foreground="white",
+        font=bold_font,
+        padding=(16, 9),
+        borderwidth=0,
+        focusthickness=0,
+    )
+    style.map(
+        "Accent.TButton",
+        background=[("disabled", "#a9c1f2"), ("pressed", ACCENT_DARK), ("active", ACCENT_DARK)],
+        foreground=[("disabled", "white")],
+        relief=[("pressed", "sunken"), ("!pressed", "flat")],
+    )
+    style.configure(
+        "Secondary.TButton",
+        background="#e7ebf2",
+        foreground=TEXT,
+        font=(FONT_FAMILY, 9),
+        padding=(11, 7),
+        borderwidth=0,
+        focusthickness=0,
+    )
+    style.map(
+        "Secondary.TButton",
+        background=[("disabled", "#f1f3f7"), ("pressed", "#cfd6e2"), ("active", "#dbe1eb")],
+        foreground=[("disabled", MUTED)],
+    )
 
     # ---- scrollbars (clam's defaults are chunky; make them slim & flat) -----
-    style.configure("Vertical.TScrollbar", background="#c9d2e0", troughcolor=BG,
-                    bordercolor=BG, arrowcolor=MUTED, gripcount=0, width=13, relief="flat")
-    style.configure("Horizontal.TScrollbar", background="#c9d2e0", troughcolor=BG,
-                    bordercolor=BG, arrowcolor=MUTED, gripcount=0, width=13, relief="flat")
+    style.configure(
+        "Vertical.TScrollbar",
+        background="#c9d2e0",
+        troughcolor=BG,
+        bordercolor=BG,
+        arrowcolor=MUTED,
+        gripcount=0,
+        width=13,
+        relief="flat",
+    )
+    style.configure(
+        "Horizontal.TScrollbar",
+        background="#c9d2e0",
+        troughcolor=BG,
+        bordercolor=BG,
+        arrowcolor=MUTED,
+        gripcount=0,
+        width=13,
+        relief="flat",
+    )
     style.map("Vertical.TScrollbar", background=[("active", ACCENT)])
     style.map("Horizontal.TScrollbar", background=[("active", ACCENT)])
 
     # ---- results table -------------------------------------------------------
-    style.configure("Treeview", background=PANEL_BG, fieldbackground=PANEL_BG,
-                    foreground=TEXT, rowheight=26,
-                    font=(FONT_FAMILY, TABLE_FONT_SIZE), borderwidth=0)
-    style.configure("Treeview.Heading", background="#e7ebf2", foreground=TEXT,
-                    font=(FONT_FAMILY, TABLE_FONT_SIZE, "bold"), relief="flat", padding=(6, 6))
-    style.map("Treeview",
-              background=[("selected", SELECT_BG)],
-              fieldbackground=[("selected", SELECT_BG)],
-              foreground=[("selected", SELECT_FG)])
-    style.map("Treeview.Heading",
-              background=[("active", "#dbe2ec"), ("pressed", ACCENT_LIGHT)],
-              foreground=[("active", TEXT)])
+    style.configure(
+        "Treeview",
+        background=PANEL_BG,
+        fieldbackground=PANEL_BG,
+        foreground=TEXT,
+        rowheight=26,
+        font=(FONT_FAMILY, TABLE_FONT_SIZE),
+        borderwidth=0,
+    )
+    style.configure(
+        "Treeview.Heading",
+        background="#e7ebf2",
+        foreground=TEXT,
+        font=(FONT_FAMILY, TABLE_FONT_SIZE, "bold"),
+        relief="flat",
+        padding=(6, 6),
+    )
+    style.map(
+        "Treeview",
+        background=[("selected", SELECT_BG)],
+        fieldbackground=[("selected", SELECT_BG)],
+        foreground=[("selected", SELECT_FG)],
+    )
+    style.map(
+        "Treeview.Heading",
+        background=[("active", "#dbe2ec"), ("pressed", ACCENT_LIGHT)],
+        foreground=[("active", TEXT)],
+    )
 
     style.configure("Status.TLabel", background=BG, foreground=MUTED, font=(FONT_FAMILY, 9))
-    style.configure("green.Horizontal.TProgressbar", troughcolor="#e1e6ee",
-                    background=ACCENT, bordercolor="#e1e6ee",
-                    lightcolor=ACCENT, darkcolor=ACCENT, thickness=22)
+    style.configure(
+        "green.Horizontal.TProgressbar",
+        troughcolor="#e1e6ee",
+        background=ACCENT,
+        bordercolor="#e1e6ee",
+        lightcolor=ACCENT,
+        darkcolor=ACCENT,
+        thickness=22,
+    )
+
 
 # ---------------------------------------------------------------------------
 # SAS-style PDF listing export (reportlab, Courier, column wrapping)
@@ -223,7 +327,7 @@ def setup_style(root: tk.Tk) -> None:
 _PDF_FONT = "Courier"
 _PDF_FS = 8.0
 _PDF_LEAD = 11.0
-_PDF_CHAR = 0.6 * _PDF_FS          # Courier advance width = 60% of font size
+_PDF_CHAR = 0.6 * _PDF_FS  # Courier advance width = 60% of font size
 
 
 def _fmt_num(v):
@@ -276,8 +380,8 @@ def write_sas_pdf(path, df, title_lines):
     def new_page():
         c.showPage()
         st["y"] = page_h - margin
-        draw_title()                                   # title on every page
-        if st["table_header_fn"] is not None:          # table header on every page
+        draw_title()  # title on every page
+        if st["table_header_fn"] is not None:  # table header on every page
             st["table_header_fn"]()
 
     # -- page-checking drawing -------------------------------------------------
@@ -298,7 +402,7 @@ def write_sas_pdf(path, df, title_lines):
         if st["y"] - n * _PDF_LEAD < margin:
             new_page()
 
-    draw_title()                                       # first-page title
+    draw_title()  # first-page title
 
     cols = [str(x) for x in df.columns]
     low = {cl.lower(): cl for cl in cols}
@@ -337,11 +441,11 @@ def write_sas_pdf(path, df, title_lines):
             put(line)
             blank()
 
-        HDR_LINES = 5   # banner + blank + SM row + LL/UL row + blank
+        HDR_LINES = 5  # banner + blank + SM row + LL/UL row + blank
 
-        for start in range(0, len(sms), per_page):      # column wrapping
-            seg = sms[start:start + per_page]
-            st["table_header_fn"] = None                # don't repeat old header
+        for start in range(0, len(sms), per_page):  # column wrapping
+            seg = sms[start : start + per_page]
+            st["table_header_fn"] = None  # don't repeat old header
             need(HDR_LINES + 1)
             header(seg)
             st["table_header_fn"] = lambda seg=seg: header(seg)
@@ -350,16 +454,17 @@ def write_sas_pdf(path, df, title_lines):
                 for sm in seg:
                     ll, ul = get.get((se, sm), ("*", "*"))
                     line += (" " * gap) + f"{ll:>{ll_w}} {ul:>{ul_w}}"
-                put(line)                               # auto page-break repeats
-            blank()                                     # title + segment header
+                put(line)  # auto page-break repeats
+            blank()  # title + segment header
         st["table_header_fn"] = None
         c.save()
         return
 
     # ------------ Plan-1 style: long rows wrapped into side-by-side blocks --
     body = [[_cell(v) for v in row] for _, row in df.iterrows()]
-    widths = [max(len(cols[j]), max((len(r[j]) for r in body), default=0))
-              for j in range(len(cols))]
+    widths = [
+        max(len(cols[j]), max((len(r[j]) for r in body), default=0)) for j in range(len(cols))
+    ]
 
     hdr = []
     for j, h in enumerate(cols):
@@ -373,8 +478,8 @@ def write_sas_pdf(path, df, title_lines):
     gap, block_gap = 3, 4
     block_w = sum(widths) + gap * (len(widths) - 1)
     n_blocks = max(1, (usable + block_gap) // (block_w + block_gap))
-    rpb = max(1, -(-len(body) // n_blocks))                 # rows per block
-    chunks = [body[i:i + rpb] for i in range(0, len(body), rpb)]
+    rpb = max(1, -(-len(body) // n_blocks))  # rows per block
+    chunks = [body[i : i + rpb] for i in range(0, len(body), rpb)]
 
     def header_line(li):
         return (" " * gap).join(f"{hdr[j][li]:^{widths[j]}}" for j in range(len(cols)))
@@ -387,17 +492,17 @@ def write_sas_pdf(path, df, title_lines):
         return (" " * gap).join(parts)
 
     for p in range(0, len(chunks), n_blocks):
-        page_chunks = chunks[p:p + n_blocks]
+        page_chunks = chunks[p : p + n_blocks]
 
         def draw_hdr(_pc=page_chunks):
             for li in range(hdr_lines):
                 put((" " * block_gap).join(header_line(li) for _ in _pc))
             blank()
 
-        st["table_header_fn"] = None                    # don't repeat old header
+        st["table_header_fn"] = None  # don't repeat old header
         need(hdr_lines + 2)
         draw_hdr()
-        st["table_header_fn"] = draw_hdr                # repeat on page breaks
+        st["table_header_fn"] = draw_hdr  # repeat on page breaks
         for i in range(rpb):
             put((" " * block_gap).join(block_line(ch, i) for ch in page_chunks))
         blank()
@@ -433,8 +538,16 @@ class ToolTip:
         self._tip = tk.Toplevel(self.widget)
         self._tip.wm_overrideredirect(True)
         self._tip.configure(bg=TOOLTIP_BG)
-        tk.Label(self._tip, text=self.text, bg=TOOLTIP_BG, fg="white",
-                 font=(FONT_FAMILY, 9), justify="left", padx=9, pady=5).pack()
+        tk.Label(
+            self._tip,
+            text=self.text,
+            bg=TOOLTIP_BG,
+            fg="white",
+            font=(FONT_FAMILY, 9),
+            justify="left",
+            padx=9,
+            pady=5,
+        ).pack()
         self._tip.geometry(f"+{x}+{y}")
 
     def _hide(self, event=None):
@@ -456,7 +569,8 @@ class LabeledField:
         self.var = tk.StringVar(value=str(default))
 
         ttk.Label(parent, text=label, style="Panel.TLabel").grid(
-            row=row, column=0, sticky="w", padx=(0, 8), pady=4)
+            row=row, column=0, sticky="w", padx=(0, 8), pady=4
+        )
         self.entry = ttk.Entry(parent, textvariable=self.var, width=width)
         self.entry.grid(row=row, column=1, sticky="w", pady=4)
 
@@ -517,8 +631,9 @@ class ScrollableFrame(ttk.Frame):
     def __init__(self, parent):
         super().__init__(parent, style="Panel.TFrame")
 
-        self.canvas = tk.Canvas(self, borderwidth=0, highlightthickness=0,
-                                takefocus=0, background=PANEL_BG)
+        self.canvas = tk.Canvas(
+            self, borderwidth=0, highlightthickness=0, takefocus=0, background=PANEL_BG
+        )
         self.vsb = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
         self.canvas.configure(yscrollcommand=self._on_yscroll)
 
@@ -629,7 +744,6 @@ def _spline_xy(xs, ys, samples=300):
     return xx, np.interp(xx, ux, uy)
 
 
-
 def _grid_columns(df):
     """Detect a 3-column grid and return (x, y, z) column *names*.
 
@@ -648,14 +762,16 @@ def _grid_columns(df):
         return None
 
     zcol = num.columns[int(np.argmax(uniq))]
-    axes = sorted((c for c in num.columns if c != zcol),
-                  key=lambda c: num[c].nunique(), reverse=True)
+    axes = sorted(
+        (c for c in num.columns if c != zcol), key=lambda c: num[c].nunique(), reverse=True
+    )
 
     # sanity check: the surface must vary more than either axis
     if num[zcol].nunique() <= max(num[axes[0]].nunique(), num[axes[1]].nunique()):
         return None
 
     return str(axes[0]), str(axes[1]), str(zcol)
+
 
 def _is_plan2_table(df):
     """Detect a Plan 2 acceptance limit table (SE, SM, and >=1 value column).
@@ -664,19 +780,23 @@ def _is_plan2_table(df):
     Disp Plan 2 -> SE, SM, MEANL/LL     (1 value column)
     """
     cols = [str(c).lower() for c in df.columns]
-    return 'se' in cols and 'sm' in cols and len(df.columns) >= 3
+    return "se" in cols and "sm" in cols and len(df.columns) >= 3
+
 
 def _get_plan2_axes_and_z(df):
     """Return (x_col, y_col, [z_cols]) for Plan 2 tables."""
     cols = [str(c) for c in df.columns]
     lower_cols = [c.lower() for c in cols]
-    x_col = cols[lower_cols.index('se')] if 'se' in lower_cols else cols[0]
-    y_col = cols[lower_cols.index('sm')] if 'sm' in lower_cols else cols[1]
-    z_cols = [c for c, lc in zip(cols, lower_cols) 
-              if lc not in ('se', 'sm') and pd.api.types.is_numeric_dtype(df[c])]
+    x_col = cols[lower_cols.index("se")] if "se" in lower_cols else cols[0]
+    y_col = cols[lower_cols.index("sm")] if "sm" in lower_cols else cols[1]
+    z_cols = [
+        c
+        for c, lc in zip(cols, lower_cols)
+        if lc not in ("se", "sm") and pd.api.types.is_numeric_dtype(df[c])
+    ]
     return x_col, y_col, z_cols
 
-    
+
 def _plan2_eval_columns(df):
     """Detect a Plan-2 probability-of-passing grid (U x within-SD x between-SD -> P).
 
@@ -713,12 +833,14 @@ def build_plan2_eval_plot(fig, df, u_col, se_col, sm_col, p_col):
     curve per within-location SD (SE):  P(pass) vs true mean U.
     Dashed lines mark the usual 80 % / 90 % coverage levels.
     """
-    work = pd.DataFrame({
-        "u":  pd.to_numeric(df[u_col],  errors="coerce"),
-        "se": pd.to_numeric(df[se_col], errors="coerce"),
-        "sm": pd.to_numeric(df[sm_col], errors="coerce"),
-        "p":  pd.to_numeric(df[p_col],  errors="coerce"),
-    }).dropna()
+    work = pd.DataFrame(
+        {
+            "u": pd.to_numeric(df[u_col], errors="coerce"),
+            "se": pd.to_numeric(df[se_col], errors="coerce"),
+            "sm": pd.to_numeric(df[sm_col], errors="coerce"),
+            "p": pd.to_numeric(df[p_col], errors="coerce"),
+        }
+    ).dropna()
 
     if work.empty:
         fig.text(0.5, 0.5, "Not enough numeric data to plot.", ha="center", va="center")
@@ -729,7 +851,7 @@ def build_plan2_eval_plot(fig, df, u_col, se_col, sm_col, p_col):
     se_vals = sorted(work["se"].unique())
     n = len(sm_vals)
     ncols = min(3, n)
-    nrows = -(-n // ncols)                      # ceil without importing math
+    nrows = -(-n // ncols)  # ceil without importing math
     axes = fig.subplots(nrows, ncols, squeeze=False, sharex=True, sharey=True)
 
     for i, smv in enumerate(sm_vals):
@@ -753,27 +875,30 @@ def build_plan2_eval_plot(fig, df, u_col, se_col, sm_col, p_col):
         if i % ncols == 0:
             ax.set_ylabel(p_col, fontsize=9)
 
-    for j in range(n, nrows * ncols):         # hide unused panels
+    for j in range(n, nrows * ncols):  # hide unused panels
         axes[j // ncols][j % ncols].set_axis_off()
 
     handles, labels = axes[0][0].get_legend_handles_labels()
     if handles:
-        fig.legend(handles, labels, loc="lower center",
-                   ncol=min(len(labels), 4), fontsize=8, frameon=False)
-    fig.suptitle(f"Probability of passing vs {u_col}  (panels: {sm_col}, curves: {se_col})",
-                 fontsize=10)
+        fig.legend(
+            handles, labels, loc="lower center", ncol=min(len(labels), 4), fontsize=8, frameon=False
+        )
+    fig.suptitle(
+        f"Probability of passing vs {u_col}  (panels: {sm_col}, curves: {se_col})", fontsize=10
+    )
     fig.tight_layout(rect=(0, 0.05, 1, 0.95))
 
+
 def build_results_plot_plan2(fig, df):
     """Family of curves for Plan 2 tables: LL/UL vs SE, grouped by SM."""
     x_col, y_col, z_cols = _get_plan2_axes_and_z(df)
     if not z_cols:
         fig.text(0.5, 0.5, "Not enough data to plot.", ha="center", va="center")
         return
-        
+
     n_z = len(z_cols)
     axes = fig.subplots(1, n_z, squeeze=False)
-    
+
     for idx, z_col in enumerate(z_cols):
         ax = axes[0, idx]
         grouped = df.groupby(y_col, sort=True)
@@ -782,18 +907,18 @@ def build_results_plot_plan2(fig, df):
             ys = sub[z_col].to_numpy(dtype=float)
             order = np.argsort(xs)
             xs, ys = xs[order], ys[order]
-            
+
             xx, yy = _spline_xy(xs, ys)
             ax.plot(xx, yy, "-", color=color, lw=1.6, label=f"{y_col}={sm_val:g}")
             ax.plot(xs, ys, "o", color=color, ms=3, alpha=0.7)
-            
+
         ax.set_xlabel(x_col)
         ax.set_ylabel(z_col)
         ax.set_title(f"{z_col} vs {x_col}")
         ncol = 2 if len(grouped) > 6 else 1
         ax.legend(fontsize=7, loc="best", ncol=ncol)
         ax.grid(True, alpha=0.3)
-        
+
     fig.tight_layout()
 
 
@@ -803,10 +928,10 @@ def build_results_plot_plan2(fig, df):
     if not z_cols:
         fig.text(0.5, 0.5, "Not enough data to plot.", ha="center", va="center")
         return
-        
+
     n_z = len(z_cols)
     axes = fig.subplots(1, n_z, squeeze=False)
-    
+
     for idx, z_col in enumerate(z_cols):
         ax = axes[0, idx]
         grouped = df.groupby(y_col, sort=True)
@@ -815,19 +940,20 @@ def build_results_plot_plan2(fig, df):
             ys = sub[z_col].to_numpy(dtype=float)
             order = np.argsort(xs)
             xs, ys = xs[order], ys[order]
-            
+
             xx, yy = _spline_xy(xs, ys)
             ax.plot(xx, yy, "-", color=color, lw=1.6, label=f"{y_col}={sm_val:g}")
             ax.plot(xs, ys, "o", color=color, ms=3, alpha=0.7)
-            
+
         ax.set_xlabel(x_col)
         ax.set_ylabel(z_col)
         ax.set_title(f"{z_col} vs {x_col}")
         ncol = 2 if len(grouped) > 6 else 1
         ax.legend(fontsize=7, loc="best", ncol=ncol)
         ax.grid(True, alpha=0.3)
-        
+
     fig.tight_layout()
+
 
 def build_heatmap_plan2(fig, df, z_col, thresholds=(0.8, 0.9)):
     """Contour-filled heatmap for Plan 2 tables (SE x SM -> Z)."""
@@ -837,39 +963,49 @@ def build_heatmap_plan2(fig, df, z_col, thresholds=(0.8, 0.9)):
         return
     if z_col not in z_cols:
         z_col = z_cols[0]
-        
+
     work = df[[x_col, y_col, z_col]].copy()
     work = work.apply(pd.to_numeric, errors="coerce").dropna()
     piv = work.pivot_table(index=y_col, columns=x_col, values=z_col, aggfunc="mean")
     piv = piv.sort_index(axis=0).sort_index(axis=1)
-    
+
     X = piv.columns.to_numpy(dtype=float)
     Y = piv.index.to_numpy(dtype=float)
     Z = np.ma.masked_invalid(piv.to_numpy(dtype=float))
-    
+
     ax = fig.add_subplot(111)
     if Z.count() == 0 or X.size < 2 or Y.size < 2:
         ax.text(0.5, 0.5, "Not enough grid points for a heatmap.", ha="center", va="center")
         fig.tight_layout()
         return
-        
+
     cs = ax.contourf(X, Y, Z, levels=min(24, max(6, X.size + Y.size)), cmap="viridis")
     fig.colorbar(cs, ax=ax, label=z_col)
-    
-    if X.size <= 15: ax.set_xticks(X)
-    if Y.size <= 15: ax.set_yticks(Y)
-        
+
+    if X.size <= 15:
+        ax.set_xticks(X)
+    if Y.size <= 15:
+        ax.set_yticks(Y)
+
     if float(Z.max()) <= 1.01 and float(Z.min()) >= -0.01:
         for i, t in enumerate(thresholds):
             if float(Z.min()) <= t <= float(Z.max()):
                 ax.contour(X, Y, Z, levels=[t], colors="white", linewidths=1.2)
-                ax.text(0.02, 0.98 - 0.06 * i, f"white line = {t:.0%}",
-                        transform=ax.transAxes, fontsize=8, color="white", va="top")
-                        
+                ax.text(
+                    0.02,
+                    0.98 - 0.06 * i,
+                    f"white line = {t:.0%}",
+                    transform=ax.transAxes,
+                    fontsize=8,
+                    color="white",
+                    va="top",
+                )
+
     ax.set_xlabel(x_col)
     ax.set_ylabel(y_col)
     ax.set_title(f"{z_col} over {x_col} / {y_col}", fontsize=10)
     fig.tight_layout()
+
 
 def build_results_plot(fig, df):
     """Points + spline curves for the results DataFrame."""
@@ -940,7 +1076,7 @@ def build_heatmap(fig, df, thresholds=(0.8, 0.9)):
 
     X = piv.columns.to_numpy(dtype=float)
     Y = piv.index.to_numpy(dtype=float)
-    Z = np.ma.masked_invalid(piv.to_numpy(dtype=float))   # holes -> masked, not artifacts
+    Z = np.ma.masked_invalid(piv.to_numpy(dtype=float))  # holes -> masked, not artifacts
 
     if Z.count() == 0 or X.size < 2 or Y.size < 2:
         ax.text(0.5, 0.5, "Not enough grid points for a heatmap.", ha="center", va="center")
@@ -959,8 +1095,15 @@ def build_heatmap(fig, df, thresholds=(0.8, 0.9)):
         for i, t in enumerate(thresholds):
             if float(Z.min()) <= t <= float(Z.max()):
                 ax.contour(X, Y, Z, levels=[t], colors="white", linewidths=1.2)
-                ax.text(0.02, 0.98 - 0.06 * i, f"white line = {t:.0%}",
-                        transform=ax.transAxes, fontsize=8, color="white", va="top")
+                ax.text(
+                    0.02,
+                    0.98 - 0.06 * i,
+                    f"white line = {t:.0%}",
+                    transform=ax.transAxes,
+                    fontsize=8,
+                    color="white",
+                    va="top",
+                )
 
     ax.set_xlabel(xcol)
     ax.set_ylabel(ycol)
@@ -969,7 +1112,7 @@ def build_heatmap(fig, df, thresholds=(0.8, 0.9)):
 
 
 class PlotDialog(tk.Toplevel):
-    def __init__(self, parent, df, title="Results plot"):
+    def __init__(self, parent, df, title="Results plot", save_base=None):
         super().__init__(parent)
         self.title(title)
         self.geometry("900x640")
@@ -978,20 +1121,23 @@ class PlotDialog(tk.Toplevel):
         self.configure(bg=BG)
         self.transient(parent)
         self._df = df
-        
+
+        self._save_base = save_base or "results"
         self._is_plan2 = _is_plan2_table(df)
         self._can_heat = self._is_plan2 or _grid_columns(df) is not None
-        
+
         top = ttk.Frame(self, style="Panel.TFrame")
         top.pack(side="top", fill="x", padx=8, pady=8)
         ttk.Label(top, text="Plot style:", style="Panel.TLabel").pack(side="left", padx=(0, 6))
-        
+
         self._style_var = tk.StringVar(value="Lines + spline")
         values = ["Lines + spline"] + (["Heatmap (grid)"] if self._can_heat else [])
-        cb = ttk.Combobox(top, textvariable=self._style_var, state="readonly", width=16, values=values)
+        cb = ttk.Combobox(
+            top, textvariable=self._style_var, state="readonly", width=16, values=values
+        )
         cb.pack(side="left")
         cb.bind("<<ComboboxSelected>>", lambda _e: self._redraw())
-        
+
         # Z-axis selector for Plan 2 tables
         self._z_var = tk.StringVar()
         self._z_cb = None
@@ -999,15 +1145,26 @@ class PlotDialog(tk.Toplevel):
             _, _, z_cols = _get_plan2_axes_and_z(df)
             if z_cols:
                 self._z_var.set(str(z_cols[0]))
-            if len(z_cols) > 1:          # CU: LL/UL choice; Disp: single surface
-                ttk.Label(top, text="  Z-axis:", style="Panel.TLabel").pack(side="left", padx=(12, 6))
-                self._z_cb = ttk.Combobox(top, textvariable=self._z_var, state="readonly",
-                                          width=12, values=[str(c) for c in z_cols])
+            if len(z_cols) > 1:  # CU: LL/UL choice; Disp: single surface
+                ttk.Label(top, text="  Z-axis:", style="Panel.TLabel").pack(
+                    side="left", padx=(12, 6)
+                )
+                self._z_cb = ttk.Combobox(
+                    top,
+                    textvariable=self._z_var,
+                    state="readonly",
+                    width=12,
+                    values=[str(c) for c in z_cols],
+                )
                 self._z_cb.pack(side="left")
                 self._z_cb.bind("<<ComboboxSelected>>", lambda _e: self._redraw())
 
-        ttk.Button(top, text="Save PNG", style="Secondary.TButton", command=self._save_png).pack(side="right", padx=(6, 0))
-        ttk.Button(top, text="Close", style="Accent.TButton", command=self._close).pack(side="right")
+        ttk.Button(top, text="Save PNG", style="Secondary.TButton", command=self._save_png).pack(
+            side="right", padx=(6, 0)
+        )
+        ttk.Button(top, text="Close", style="Accent.TButton", command=self._close).pack(
+            side="right"
+        )
 
         self._fig = Figure(dpi=100, facecolor=PANEL_BG)
         self._canvas = FigureCanvasTkAgg(self._fig, master=self)
@@ -1048,36 +1205,47 @@ class PlotDialog(tk.Toplevel):
         self._canvas.draw()
 
     def _save_png(self):
-        path = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG image", "*.png")])
+        path = filedialog.asksaveasfilename(
+            defaultextension=".png",
+            filetypes=[("PNG image", "*.png")],
+            initialfile=self._save_base + ".png",
+        )
         if path:
             self._fig.savefig(path, dpi=150)
             messagebox.showinfo("Saved", f"Figure saved to {path}")
 
     def _close(self):
-        try: self.grab_release()
-        except tk.TclError: pass
+        try:
+            self.grab_release()
+        except tk.TclError:
+            pass
         self.destroy()
+
 
 class OCDialog(tk.Toplevel):
     """Modal dialog: OC curve -- computed plan vs the USP test itself (MC)."""
 
-    def __init__(self, parent, ctx, title="OC Curve"):
+    def __init__(self, parent, ctx, title="OC Curve", save_base=None):
         super().__init__(parent)
-        self._title = "OC Curve -- computed plan vs " + ("USP <905>" if ctx["test"] == "cu" else "USP <711>")
+        self._title = "OC Curve -- computed plan vs " + (
+            "USP <905>" if ctx["test"] == "cu" else "USP <711>"
+        )
         self.title(self._title)
         self.geometry("900x640")
         self.minsize(900, 640)
         self.resizable(True, True)
         self.configure(bg=BG)
         self.transient(parent)
+        self._save_base = save_base
         self._ctx = ctx
 
         top = ttk.Frame(self, style="Panel.TFrame")
         top.pack(side="top", fill="x", padx=8, pady=8)
 
         ttk.Label(top, text="X axis:", style="Panel.TLabel").pack(side="left", padx=(0, 6))
-        self._x_cb = ttk.Combobox(top, state="readonly", width=28,
-                                  values=[label for _k, label in ctx["x_choices"]])
+        self._x_cb = ttk.Combobox(
+            top, state="readonly", width=28, values=[label for _k, label in ctx["x_choices"]]
+        )
         self._x_cb.current(0)
         self._x_cb.pack(side="left")
 
@@ -1091,11 +1259,15 @@ class OCDialog(tk.Toplevel):
         self.rep_ed.insert(0, "2000")
         self.rep_ed.pack(side="left")
 
-        ttk.Button(top, text="Close", style="Accent.TButton", command=self._close).pack(side="right")
-        ttk.Button(top, text="Save PNG", style="Secondary.TButton",
-                   command=self._save_png).pack(side="right", padx=(6, 0))
-        ttk.Button(top, text="Redraw", style="Secondary.TButton",
-                   command=self._redraw).pack(side="right", padx=(6, 0))
+        ttk.Button(top, text="Close", style="Accent.TButton", command=self._close).pack(
+            side="right"
+        )
+        ttk.Button(top, text="Save PNG", style="Secondary.TButton", command=self._save_png).pack(
+            side="right", padx=(6, 0)
+        )
+        ttk.Button(top, text="Redraw", style="Secondary.TButton", command=self._redraw).pack(
+            side="right", padx=(6, 0)
+        )
 
         self._fixed_frame = ttk.Frame(self, style="Panel.TFrame")
         self._fixed_frame.pack(side="top", fill="x", padx=8)
@@ -1130,8 +1302,11 @@ class OCDialog(tk.Toplevel):
         return self._ctx["x_choices"][self._x_cb.current()][0]
 
     def _usp_label(self):
-        return ("USP <905> two-stage test (Monte Carlo)" if self._ctx["test"] == "cu"
-                else "USP <711> three-stage test (Monte Carlo)")
+        return (
+            "USP <905> two-stage test (Monte Carlo)"
+            if self._ctx["test"] == "cu"
+            else "USP <711> three-stage test (Monte Carlo)"
+        )
 
     def _build_fixed(self):
         for w in self._fixed_frame.winfo_children():
@@ -1147,7 +1322,8 @@ class OCDialog(tk.Toplevel):
             self._fixed_edits[name] = ed
         lo, hi, st = self._ctx["grid"][xk]
         for w, val in ((self.g_lo, lo), (self.g_hi, hi), (self.g_st, st)):
-            w.delete(0, "end"); w.insert(0, str(val))
+            w.delete(0, "end")
+            w.insert(0, str(val))
 
     def _redraw(self):
         xk = self._x_key()
@@ -1160,10 +1336,16 @@ class OCDialog(tk.Toplevel):
 
         self._fig.clear()
         ax = self._fig.add_subplot(111)
-        ax.plot(xs, p_comp, "o-", color=SERIES_COLORS[0], lw=1.8, ms=4,
-                label="Computed plan (acceptance-limit table)")
-        ax.plot(xs, p_usp, "s--", color=SERIES_COLORS[2], lw=1.8, ms=4,
-                label=self._usp_label())
+        ax.plot(
+            xs,
+            p_comp,
+            "o-",
+            color=SERIES_COLORS[0],
+            lw=1.8,
+            ms=4,
+            label="Computed plan (acceptance-limit table)",
+        )
+        ax.plot(xs, p_usp, "s--", color=SERIES_COLORS[2], lw=1.8, ms=4, label=self._usp_label())
         for t in (0.8, 0.9):
             ax.axhline(t, ls=":", lw=0.8, color="0.5")
         ax.set_ylim(0.0, 1.05)
@@ -1177,8 +1359,11 @@ class OCDialog(tk.Toplevel):
         self._canvas.draw()
 
     def _save_png(self):
-        path = filedialog.asksaveasfilename(defaultextension=".png",
-                                            filetypes=[("PNG image", "*.png")])
+        path = filedialog.asksaveasfilename(
+            defaultextension=".png",
+            filetypes=[("PNG image", "*.png")],
+            initialfile=self._save_base + ".png",
+        )
         if path:
             self._fig.savefig(path, dpi=150)
             messagebox.showinfo("Saved", f"Figure saved to {path}")
@@ -1189,6 +1374,7 @@ class OCDialog(tk.Toplevel):
         except tk.TclError:
             pass
         self.destroy()
+
 
 # ---------------------------------------------------------------------------
 # Results panel
@@ -1208,23 +1394,42 @@ class ResultsPanel(ttk.Frame):
 
         ttk.Label(toolbar, text="Results", style="SectionTitle.TLabel").pack(side="left")
 
-        self.plot_btn = ttk.Button(toolbar, text="Plot", style="Secondary.TButton",
-                                   command=self._show_plot, state="disabled")
+        self.plot_btn = ttk.Button(
+            toolbar,
+            text="Plot",
+            style="Secondary.TButton",
+            command=self._show_plot,
+            state="disabled",
+        )
         self.plot_btn.pack(side="right", padx=(0, 6))
-        self.oc_btn = ttk.Button(toolbar, text="OC Curve", style="Secondary.TButton",
-                                 state="disabled")
+        self.oc_btn = ttk.Button(
+            toolbar, text="OC Curve", style="Secondary.TButton", state="disabled"
+        )
         self.oc_btn.pack(side="right", padx=(0, 6))
-        self.pdf_btn = ttk.Button(toolbar, text="Export PDF", style="Secondary.TButton",
-                                  command=self._export_pdf, state="disabled")
+        self.pdf_btn = ttk.Button(
+            toolbar,
+            text="Export PDF",
+            style="Secondary.TButton",
+            command=self._export_pdf,
+            state="disabled",
+        )
         self.pdf_btn.pack(side="right", padx=(0, 6))
         self.report_meta = None
-        self.export_btn = ttk.Button(toolbar, text="Export CSV", style="Secondary.TButton",
-                                     command=self._export_csv, state="disabled")
+        self.export_btn = ttk.Button(
+            toolbar,
+            text="Export CSV",
+            style="Secondary.TButton",
+            command=self._export_csv,
+            state="disabled",
+        )
         self.export_btn.pack(side="right", padx=(0, 6))
 
         self.row_count_label = ttk.Label(toolbar, text="", style="Muted.TLabel")
         self.row_count_label.pack(side="right", padx=(0, 10))
-        ToolTip(self.row_count_label, "Tip: click a column header to sort;\nCtrl+C copies selected rows.")
+        ToolTip(
+            self.row_count_label,
+            "Tip: click a column header to sort;\nCtrl+C copies selected rows.",
+        )
 
         body = ttk.Frame(self, style="Panel.TFrame")
         body.pack(fill="both", expand=True, padx=10, pady=10)
@@ -1236,14 +1441,19 @@ class ResultsPanel(ttk.Frame):
 
         # visibility hardening (some Tk builds ignore style-level colors)
         try:
-            self.tree.configure(background=PANEL_BG, fieldbackground=PANEL_BG,
-                                foreground=TEXT, font=(FONT_FAMILY, TABLE_FONT_SIZE))
+            self.tree.configure(
+                background=PANEL_BG,
+                fieldbackground=PANEL_BG,
+                foreground=TEXT,
+                font=(FONT_FAMILY, TABLE_FONT_SIZE),
+            )
             self.tree.configure(selectbackground=SELECT_BG, selectforeground=SELECT_FG)
         except tk.TclError:
             pass
 
-        self.tree.tag_configure("data", foreground=TEXT, background=PANEL_BG,
-                                font=(FONT_FAMILY, TABLE_FONT_SIZE))
+        self.tree.tag_configure(
+            "data", foreground=TEXT, background=PANEL_BG, font=(FONT_FAMILY, TABLE_FONT_SIZE)
+        )
         self.tree.tag_configure("even", background=ROW_ALT_BG)
         self.tree.tag_configure("low", foreground=ERR_RED)
         self.tree.tag_configure("high", foreground=OK_GREEN)
@@ -1370,19 +1580,25 @@ class ResultsPanel(ttk.Frame):
     # -- actions ------------------------------------------------------------------
     def _show_plot(self):
         if not HAVE_MPL:
-            messagebox.showerror("Plot unavailable",
-                                 "matplotlib is required for plotting.\n"
-                                 "Install it with:  pip install matplotlib")
+            messagebox.showerror(
+                "Plot unavailable",
+                "matplotlib is required for plotting.\nInstall it with:  pip install matplotlib",
+            )
             return
         if self._df is None:
             return
-        PlotDialog(self, self._df, title="Results plot")
+        PlotDialog(
+            self, self._df, title="Results plot", save_base=self._default_name(suffix="-plot")
+        )
 
     def _export_csv(self):
         if self._df is None:
             return
-        path = filedialog.asksaveasfilename(defaultextension=".csv",
-                                            filetypes=[("CSV files", "*.csv")])
+        path = filedialog.asksaveasfilename(
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv")],
+            initialfile=self._default_name(ext=".csv"),
+        )
         if not path:
             return
         self._df.to_csv(path, index=False, quoting=csv.QUOTE_MINIMAL)
@@ -1390,13 +1606,18 @@ class ResultsPanel(ttk.Frame):
 
     def _export_pdf(self):
         if not HAVE_PDF:
-            messagebox.showerror("PDF export unavailable",
-                                 "reportlab is required.\nInstall it with:  pip install reportlab")
+            messagebox.showerror(
+                "PDF export unavailable",
+                "reportlab is required.\nInstall it with:  pip install reportlab",
+            )
             return
         if self._df is None:
             return
-        path = filedialog.asksaveasfilename(defaultextension=".pdf",
-                                            filetypes=[("PDF files", "*.pdf")])
+        path = filedialog.asksaveasfilename(
+            defaultextension=".pdf",
+            filetypes=[("PDF files", "*.pdf")],
+            initialfile=self._default_name(ext=".pdf"),
+        )
         if not path:
             return
         meta = self.report_meta or {"title": ["CuDAL RESULTS"]}
@@ -1405,6 +1626,14 @@ class ResultsPanel(ttk.Frame):
             messagebox.showinfo("Exported", f"Saved to {path}")
         except Exception as exc:
             messagebox.showerror("PDF export failed", str(exc))
+
+    def _default_name(self, suffix="", ext=""):
+        tab = getattr(self, "tab", None)
+        try:
+            base = tab._export_base_name() if tab is not None else "results"
+        except Exception:
+            base = "results"
+        return base + suffix + ext
 
 
 # ---------------------------------------------------------------------------
@@ -1429,49 +1658,50 @@ def _oc_cu_pass(units: np.ndarray, target: float) -> float:
     # --- Stage 1 (10 units) ---
     x1 = units[:, :10]
     m1, s1 = x1.mean(axis=1), x1.std(axis=1, ddof=1)
-    
+
     p1 = (np.abs(M(m1) - m1) + 2.4 * s1) <= 15.0
     passed |= p1
-    
+
     # --- Stage 2 (30 units) ---
     live = np.where(~p1)[0]
     if live.size:
         x30 = units[live]
         m2, s2 = x30.mean(axis=1), x30.std(axis=1, ddof=1)
         M2 = M(m2)
-        
+
         av_ok = (np.abs(M2 - m2) + 2.0 * s2) <= 15.0
         # FIXED: 0.25 * M2 instead of hardcoded 25.0
         within_ok = np.abs(x30 - M2[:, None]).max(axis=1) <= (0.25 * M2)
-        
+
         passed[live[av_ok & within_ok]] = True
 
     return float(passed.mean())
+
 
 def _oc_disp_pass(units, q):
     """Three-stage USP <711> decision. units: (reps, 24) -> P(pass)."""
     passed = np.zeros(units.shape[0], dtype=bool)
 
-    x6 = units[:, :6]                                   # Stage 1: all >= Q+5
+    x6 = units[:, :6]  # Stage 1: all >= Q+5
     p = np.all(x6 >= q + 5.0, axis=1)
     passed |= p
     live = np.where(~p)[0]
 
-    if live.size:                                       # Stage 2: 12 units
+    if live.size:  # Stage 2: 12 units
         x12 = units[live][:, :12]
         # FIXED: Changed > to >= for Q-15 boundary
         p = (x12.mean(axis=1) >= q) & np.all(x12 >= q - 15.0, axis=1)
         passed[live[p]] = True
         live = live[~p]
 
-    if live.size:                                       # Stage 3: 24 units
+    if live.size:  # Stage 3: 24 units
         x24 = units[live][:, :24]
         ok_mean = x24.mean(axis=1) >= q
         # FIXED: Changed <= to < to match "less than Q-15%"
         n_l15 = (x24 < q - 15.0).sum(axis=1)
         # FIXED: Changed <= to < to match "less than Q-25%"
         any_l25 = (x24 < q - 25.0).any(axis=1)
-        
+
         p = ok_mean & (n_l15 <= 2) & ~any_l25
         passed[live[p]] = True
 
@@ -1484,6 +1714,7 @@ def _prob_series(df):
             return pd.to_numeric(df[c], errors="coerce").to_numpy(dtype=float)
     return pd.to_numeric(df.iloc[:, -1], errors="coerce").to_numpy(dtype=float)
 
+
 def make_oc_context(test, ref, computed, make_units, x_choices, grid, fixed_specs):
     """Single factory for every tab's OC context (same as the PySide6 GUI)."""
     decision = _oc_cu_pass if test == "cu" else _oc_disp_pass
@@ -1491,23 +1722,31 @@ def make_oc_context(test, ref, computed, make_units, x_choices, grid, fixed_spec
     def usp(xk, xs, fx, reps):
         out = []
         for x in xs:
-            rng = np.random.default_rng(12345)   # seeded -> reproducible
+            rng = np.random.default_rng(12345)  # seeded -> reproducible
             out.append(decision(make_units(xk, float(x), fx, rng, reps), ref))
         return np.array(out)
 
-    return {"test": test, "x_choices": x_choices, "grid": grid,
-            "fixed_specs": fixed_specs, "computed": computed, "usp": usp}
+    return {
+        "test": test,
+        "x_choices": x_choices,
+        "grid": grid,
+        "fixed_specs": fixed_specs,
+        "computed": computed,
+        "usp": usp,
+    }
+
 
 # ---------------------------------------------------------------------------
 # Base tab
 # ---------------------------------------------------------------------------
 class BaseTab(ttk.Frame):
-    MODES = [("table", "Acceptance limit table"),
-             ("evaluate", "Probability of passing"),
-             ("sample", "Sample probability")]
-    DOMAIN = "CONTENT UNIFORMITY"   # overridden per tab
-    PLAN = 1                        # overridden per tab
-
+    MODES = [
+        ("table", "Acceptance limit table"),
+        ("evaluate", "Probability of passing"),
+        ("sample", "Sample probability"),
+    ]
+    DOMAIN = "CONTENT UNIFORMITY"  # overridden per tab
+    PLAN = 1  # overridden per tab
 
     def __init__(self, parent, title, subtitle):
         super().__init__(parent, style="TFrame")
@@ -1534,8 +1773,9 @@ class BaseTab(ttk.Frame):
         mode_box.pack(fill="x", padx=10, pady=(10, 8))
         self.mode_var = tk.StringVar(value="table")
         for val, label in self.MODES:
-            ttk.Radiobutton(mode_box, text=label, value=val, variable=self.mode_var,
-                            command=self._switch_mode).pack(anchor="w", padx=8, pady=3)
+            ttk.Radiobutton(
+                mode_box, text=label, value=val, variable=self.mode_var, command=self._switch_mode
+            ).pack(anchor="w", padx=8, pady=3)
 
         self.mode_frames = {}
         self.stack = ScrollableFrame(controls)
@@ -1551,17 +1791,29 @@ class BaseTab(ttk.Frame):
         self.run_btn = ttk.Button(run_row, text="Run", style="Accent.TButton", command=self._on_run)
         self.run_btn.pack(side="left")
         ToolTip(self.run_btn, "Run the selected analysis (Ctrl+R)")
-        ttk.Button(run_row, text="Reset", style="Secondary.TButton",
-                   command=self._reset_defaults).pack(side="left", padx=(8, 0))
-        self.progress = ttk.Progressbar(run_row, mode="determinate", length=120, maximum=100,
-                                        style="green.Horizontal.TProgressbar")
+        ttk.Button(
+            run_row, text="Reset", style="Secondary.TButton", command=self._reset_defaults
+        ).pack(side="left", padx=(8, 0))
+        self.progress = ttk.Progressbar(
+            run_row,
+            mode="determinate",
+            length=120,
+            maximum=100,
+            style="green.Horizontal.TProgressbar",
+        )
         self.progress.pack(side="left", padx=10)
 
         self.status_var = tk.StringVar(value="Ready.")
-        ttk.Label(controls, textvariable=self.status_var, style="Muted.TLabel",
-                  wraplength=260, justify="left").pack(fill="x", padx=10, pady=(0, 10))
+        ttk.Label(
+            controls,
+            textvariable=self.status_var,
+            style="Muted.TLabel",
+            wraplength=260,
+            justify="left",
+        ).pack(fill="x", padx=10, pady=(0, 10))
 
         self.results = ResultsPanel(body)
+        self.results.tab = self
         self.results.oc_btn.configure(command=self._show_oc)
         self.results.grid(row=0, column=1, sticky="nsew")
 
@@ -1593,8 +1845,10 @@ class BaseTab(ttk.Frame):
     def collect_state(self):
         return {
             "mode": self.mode_var.get(),
-            "fields": {mode: {k: f.var.get() for k, f in reg.items()}
-                       for mode, reg in self.field_registry.items()},
+            "fields": {
+                mode: {k: f.var.get() for k, f in reg.items()}
+                for mode, reg in self.field_registry.items()
+            },
         }
 
     def apply_state(self, state):
@@ -1625,9 +1879,11 @@ class BaseTab(ttk.Frame):
     def _on_run(self):
         if self._running:
             return
-        job = {"table": self._run_table,
-               "evaluate": self._run_evaluate,
-               "sample": self._run_sample}[self.mode_var.get()]()
+        job = {
+            "table": self._run_table,
+            "evaluate": self._run_evaluate,
+            "sample": self._run_sample,
+        }[self.mode_var.get()]()
 
         self._running = True
         self.run_btn["state"] = "disabled"
@@ -1637,6 +1893,7 @@ class BaseTab(ttk.Frame):
         def worker():
             def report(frac, msg=""):
                 self._task_queue.put(("progress", float(frac), str(msg)))
+
             try:
                 result = job(report)
                 self._task_queue.put(("ok", result))
@@ -1702,8 +1959,12 @@ class BaseTab(ttk.Frame):
             key = f"TARGET = {target:.1f}" if target is not None else f"Q = {q:.1f}"
             lines.append(f"ACCEPTANCE LIMITS FOR {self.DOMAIN}(N= {n:.0f}, {key})")
             lines.append("SAMPLING PLAN 1")
-            lines.append(f"(MEETING LIMITS GUARANTEES, WITH {cilevel:.1f}% ASSURANCE, THAT AT LEAST")
-            lines.append(f"{lbound:.1f}% OF SAMPLES TESTED FOR {self.DOMAIN} WILL PASS THE USP TEST)")
+            lines.append(
+                f"(MEETING LIMITS GUARANTEES, WITH {cilevel:.1f}% ASSURANCE, THAT AT LEAST"
+            )
+            lines.append(
+                f"{lbound:.1f}% OF SAMPLES TESTED FOR {self.DOMAIN} WILL PASS THE USP TEST)"
+            )
         else:
             lines.append(f"ACCEPTANCE LIMITS FOR {self.DOMAIN}")
             lines.append("SAMPLING PLAN 2")
@@ -1711,13 +1972,50 @@ class BaseTab(ttk.Frame):
             lines.append(f"{base}, LOWER BOUND = {lbound:.1f}, CONFIDENCE LEVEL = {cilevel:.1f}")
             lines.append("TABLE ENTRIES ARE LOWER(LL) AND UPPER(UL) LIMITS ON THE MEAN")
             if n is not None and loc is not None:
-                lines.append(f"OF {int(n * loc)} ASSAYS:  {int(n)} ASSAYS AT EACH OF "
-                             f"{int(loc)} DIFFERENT LOCATIONS")
+                lines.append(
+                    f"OF {int(n * loc)} ASSAYS:  {int(n)} ASSAYS AT EACH OF "
+                    f"{int(loc)} DIFFERENT LOCATIONS"
+                )
             lines.append("SE IS THE POOLED WITHIN LOCATION STANDARD DEVIATION")
             lines.append("STANDARD DEVIATIONS AND MEANS ARE EXPRESSED IN % CLAIM")
         if self.mode_var.get() != "table":
             lines.append(f"MODE: {dict(self.MODES)[self.mode_var.get()].upper()}")
         return {"title": lines}
+
+    # -- descriptive default export names ------------------------------------
+    def _export_base_name(self):
+        """e.g. CUSP2-95x95-10Lx6N, DISP1-Q80-95x95-6N (+ -EVAL / -SAMPLE)."""
+        method = ("CUSP" if "CONTENT" in self.DOMAIN else "DISP") + str(self.PLAN)
+        v = getattr(self, "table_fields", {})
+
+        def g(key):
+            try:
+                return float(v[key].get(float))
+            except Exception:
+                return None
+
+        toks = [method]
+        q = g("q")
+        if q is not None:
+            toks.append(f"Q{q:g}")
+        lb, ci = g("lbound"), g("cilevel")
+        if lb is not None and ci is not None:
+            toks.append(f"{lb:g}x{ci:g}")
+        if self.PLAN == 1:
+            n = g("number")
+            if n is not None:
+                toks.append(f"{n:g}N")
+        else:
+            loc, num = g("loc"), g("num")
+            if loc is not None and num is not None:
+                toks.append(f"{loc:g}Lx{num:g}N")
+        base = "-".join(toks)
+        mode = self.mode_var.get()
+        if mode == "evaluate":
+            base += "-EVAL"
+        elif mode == "sample":
+            base += "-SAMPLE"
+        return base
 
     # -- OC curve hooks (subclasses provide a context) -----------------------
     def _oc_available(self):
@@ -1728,15 +2026,17 @@ class BaseTab(ttk.Frame):
 
     def _show_oc(self):
         if not HAVE_MPL:
-            messagebox.showerror("Plot unavailable",
-                                 "matplotlib is required for plotting.\n"
-                                 "Install it with:  pip install matplotlib")
+            messagebox.showerror(
+                "Plot unavailable",
+                "matplotlib is required for plotting.\nInstall it with:  pip install matplotlib",
+            )
             return
         ctx = self._oc_context()
         if ctx is None:
             messagebox.showinfo("OC curve", "Not available for this scenario.")
             return
-        OCDialog(self, ctx)
+        OCDialog(self, ctx, save_base=self._export_base_name() + "-OC")
+
 
 def make_grid(low: float, high: float, step: float, name: str):
     if step <= 0:
@@ -1753,45 +2053,61 @@ def make_grid(low: float, high: float, step: float, name: str):
 class Cusp1Tab(BaseTab):
     DOMAIN = "CONTENT UNIFORMITY"
     PLAN = 1
+
     def __init__(self, parent):
-        super().__init__(parent, "Content Uniformity -- Sampling Plan 1",
-                         "Single composite sample (USP <905>).")
+        super().__init__(
+            parent, "Content Uniformity -- Sampling Plan 1", "Single composite sample (USP <905>)."
+        )
 
     def _build_mode_frames(self):
         f = self.mode_frames["table"]
-        self.table_fields = build_form(f, [
-            ("number", "Number of units (N)", 10),
-            ("target", "Target / label claim (%)", 100.0),
-            ("lbound", "Lower bound (%)", 95.0),
-            ("cilevel", "Confidence level (%)", 95.0),
-            ("mean_low", "Mean grid low", 85.1),
-            ("mean_high", "Mean grid high", 114.9),
-            ("mean_step", "Mean grid step", 0.5),
-        ], registry=self.field_registry["table"])
+        self.table_fields = build_form(
+            f,
+            [
+                ("number", "Number of units (N)", 10),
+                ("target", "Target / label claim (%)", 100.0),
+                ("lbound", "Lower bound (%)", 95.0),
+                ("cilevel", "Confidence level (%)", 95.0),
+                ("mean_low", "Mean grid low", 85.1),
+                ("mean_high", "Mean grid high", 114.9),
+                ("mean_step", "Mean grid step", 0.5),
+            ],
+            registry=self.field_registry["table"],
+        )
 
         f = self.mode_frames["evaluate"]
-        ttk.Label(f, text="Builds the table above, then evaluates:", style="Muted.TLabel",
-                  wraplength=230).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 6))
-        self.eval_fields = build_form(f, [
-            ("u_low", "True mean U -- low", 95.0),
-            ("u_high", "True mean U -- high", 105.0),
-            ("u_step", "True mean U -- step", 2.5),
-            ("cv_low", "True CV(%) -- low", 1.0),
-            ("cv_high", "True CV(%) -- high", 4.0),
-            ("cv_step", "True CV(%) -- step", 1.0),
-        ], start_row=1, registry=self.field_registry["evaluate"])
+        ttk.Label(
+            f, text="Builds the table above, then evaluates:", style="Muted.TLabel", wraplength=230
+        ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 6))
+        self.eval_fields = build_form(
+            f,
+            [
+                ("u_low", "True mean U -- low", 95.0),
+                ("u_high", "True mean U -- high", 105.0),
+                ("u_step", "True mean U -- step", 2.5),
+                ("cv_low", "True CV(%) -- low", 1.0),
+                ("cv_high", "True CV(%) -- high", 4.0),
+                ("cv_step", "True CV(%) -- step", 1.0),
+            ],
+            start_row=1,
+            registry=self.field_registry["evaluate"],
+        )
         for k in ("number", "target", "lbound", "cilevel"):
             self.eval_fields[k] = self.table_fields[k]
 
         f = self.mode_frames["sample"]
-        self.sample_fields = build_form(f, [
-            ("mean", "Sample mean (%)", 100.0),
-            ("cv", "Sample CV (%)", 2.0),
-            ("number", "Number of units (N)", 10),
-            ("target", "Target / label claim (%)", 100.0),
-            ("lbound", "Lower bound (%)", 95.0),
-            ("cilevel", "Confidence level (%)", 95.0),
-        ], registry=self.field_registry["sample"])
+        self.sample_fields = build_form(
+            f,
+            [
+                ("mean", "Sample mean (%)", 100.0),
+                ("cv", "Sample CV (%)", 2.0),
+                ("number", "Number of units (N)", 10),
+                ("target", "Target / label claim (%)", 100.0),
+                ("lbound", "Lower bound (%)", 95.0),
+                ("cilevel", "Confidence level (%)", 95.0),
+            ],
+            registry=self.field_registry["sample"],
+        )
 
     def _run_table(self):
         v = self.table_fields
@@ -1810,11 +2126,13 @@ class Cusp1Tab(BaseTab):
                 progress(0.5, "Using cached table...")
                 return hit
             progress(0.2, "Computing acceptance table...")
-            table = cusp1.acceptance_limit_table(number, target, lbound, cilevel,
-                                                 mean_low, mean_high, mean_step)
+            table = cusp1.acceptance_limit_table(
+                number, target, lbound, cilevel, mean_low, mean_high, mean_step
+            )
             self._table_cache[key] = table
             progress(1.0, "Table complete.")
             return table
+
         return job
 
     def _run_evaluate(self):
@@ -1823,12 +2141,18 @@ class Cusp1Tab(BaseTab):
         target = v["target"].get(float)
         lbound = v["lbound"].get(float)
         cilevel = v["cilevel"].get(float)
-        u_vals = make_grid(self.eval_fields["u_low"].get(float),
-                           self.eval_fields["u_high"].get(float),
-                           self.eval_fields["u_step"].get(float), "U")
-        cv_vals = make_grid(self.eval_fields["cv_low"].get(float),
-                            self.eval_fields["cv_high"].get(float),
-                            self.eval_fields["cv_step"].get(float), "CV")
+        u_vals = make_grid(
+            self.eval_fields["u_low"].get(float),
+            self.eval_fields["u_high"].get(float),
+            self.eval_fields["u_step"].get(float),
+            "U",
+        )
+        cv_vals = make_grid(
+            self.eval_fields["cv_low"].get(float),
+            self.eval_fields["cv_high"].get(float),
+            self.eval_fields["cv_step"].get(float),
+            "CV",
+        )
         key = self._cache_key(number, target, lbound, cilevel)
 
         def job(progress):
@@ -1841,6 +2165,7 @@ class Cusp1Tab(BaseTab):
                 progress(0.2, "Using cached table...")
             progress(0.6, "Evaluating probability grid...")
             return cusp1.probability_of_passing(table, number, u_vals, cv_vals)
+
         return job
 
     def _run_sample(self):
@@ -1851,15 +2176,20 @@ class Cusp1Tab(BaseTab):
         target = v["target"].get(float)
         lbound = v["lbound"].get(float)
         cilevel = v["cilevel"].get(float)
-        return lambda progress: (progress(0.4, "Computing sample probability..."),
-                                 cusp1.sample_probability(mean, cv, number, target, lbound, cilevel))[1]
+        return lambda progress: (
+            progress(0.4, "Computing sample probability..."),
+            cusp1.sample_probability(mean, cv, number, target, lbound, cilevel),
+        )[1]
 
+    def _oc_available(self):
+        return True
 
-    def _oc_available(self): return True
     def _oc_context(self):
         v = self.table_fields
-        number = v["number"].get(int); target = v["target"].get(float)
-        lbound = v["lbound"].get(float); cilevel = v["cilevel"].get(float)
+        number = v["number"].get(int)
+        target = v["target"].get(float)
+        lbound = v["lbound"].get(float)
+        cilevel = v["cilevel"].get(float)
         key = self._cache_key(number, target, lbound, cilevel)
         table = self._table_cache.get(key)
         if table is None:
@@ -1869,7 +2199,9 @@ class Cusp1Tab(BaseTab):
             if xk == "cv":
                 res = cusp1.probability_of_passing(table, number, [fx["U"]], [float(x) for x in xs])
             else:
-                res = cusp1.probability_of_passing(table, number, [float(x) for x in xs], [fx["CV"]])
+                res = cusp1.probability_of_passing(
+                    table, number, [float(x) for x in xs], [fx["CV"]]
+                )
             return _prob_series(res)
 
         def make_units(xk, x, fx, rng, reps):
@@ -1878,60 +2210,82 @@ class Cusp1Tab(BaseTab):
             return rng.normal(U, U * CV / 100.0, (reps, 30))
 
         return make_oc_context(
-            "cu", target, computed, make_units,
+            "cu",
+            target,
+            computed,
+            make_units,
             [("cv", "True CV (%)  [U fixed]"), ("u", "True mean U (%)  [CV fixed]")],
             {"cv": (0.5, 10.0, 0.25), "u": (85.0, 115.0, 1.0)},
-            {"cv": [("U", target)], "u": [("CV", 2.0)]})
+            {"cv": [("U", target)], "u": [("CV", 2.0)]},
+        )
 
 
 class Cusp2Tab(BaseTab):
     DOMAIN = "CONTENT UNIFORMITY"
     PLAN = 2
+
     def __init__(self, parent):
-        super().__init__(parent, "Content Uniformity -- Sampling Plan 2",
-                         "Multiple locations, within/between-location variance components (USP <905>).")
+        super().__init__(
+            parent,
+            "Content Uniformity -- Sampling Plan 2",
+            "Multiple locations, within/between-location variance components (USP <905>).",
+        )
 
     def _build_mode_frames(self):
         f = self.mode_frames["table"]
-        self.table_fields = build_form(f, [
-            ("num", "Units per location", 6),
-            ("loc", "Number of locations", 10),
-            ("target", "Target / label claim (%)", 100.0),
-            ("lbound", "Lower bound (%)", 95.0),
-            ("cilevel", "Confidence level (%)", 95.0),
-            ("se_low", "Within-loc SD -- low", 0.5),
-            ("se_high", "Within-loc SD -- high", 4.0),
-            ("se_step", "Within-loc SD -- step", 0.5),
-            ("sm_low", "Between-loc SD -- low", 0.5),
-            ("sm_high", "Between-loc SD -- high", 4.0),
-            ("sm_step", "Between-loc SD -- step", 0.5),
-        ], registry=self.field_registry["table"])
+        self.table_fields = build_form(
+            f,
+            [
+                ("num", "Units per location", 6),
+                ("loc", "Number of locations", 10),
+                ("target", "Target / label claim (%)", 100.0),
+                ("lbound", "Lower bound (%)", 95.0),
+                ("cilevel", "Confidence level (%)", 95.0),
+                ("se_low", "Within-loc SD -- low", 0.5),
+                ("se_high", "Within-loc SD -- high", 4.0),
+                ("se_step", "Within-loc SD -- step", 0.5),
+                ("sm_low", "Between-loc SD -- low", 0.5),
+                ("sm_high", "Between-loc SD -- high", 4.0),
+                ("sm_step", "Between-loc SD -- step", 0.5),
+            ],
+            registry=self.field_registry["table"],
+        )
 
         f = self.mode_frames["evaluate"]
-        ttk.Label(f, text="Builds the table above, then evaluates:", style="Muted.TLabel",
-                  wraplength=230).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 6))
-        self.eval_fields = build_form(f, [
-            ("u_low", "True mean U -- low", 95.0),
-            ("u_high", "True mean U -- high", 105.0),
-            ("u_step", "True mean U -- step", 2.5),
-            ("sigse_low", "True within-loc SD -- low", 1.0),
-            ("sigse_high", "True within-loc SD -- high", 3.0),
-            ("sigse_step", "True within-loc SD -- step", 1.0),
-            ("sigsm_low", "True between-loc SD -- low", 1.0),
-            ("sigsm_high", "True between-loc SD -- high", 3.0),
-            ("sigsm_step", "True between-loc SD -- step", 1.0),
-        ], start_row=1, registry=self.field_registry["evaluate"])
+        ttk.Label(
+            f, text="Builds the table above, then evaluates:", style="Muted.TLabel", wraplength=230
+        ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 6))
+        self.eval_fields = build_form(
+            f,
+            [
+                ("u_low", "True mean U -- low", 95.0),
+                ("u_high", "True mean U -- high", 105.0),
+                ("u_step", "True mean U -- step", 2.5),
+                ("sigse_low", "True within-loc SD -- low", 1.0),
+                ("sigse_high", "True within-loc SD -- high", 3.0),
+                ("sigse_step", "True within-loc SD -- step", 1.0),
+                ("sigsm_low", "True between-loc SD -- low", 1.0),
+                ("sigsm_high", "True between-loc SD -- high", 3.0),
+                ("sigsm_step", "True between-loc SD -- step", 1.0),
+            ],
+            start_row=1,
+            registry=self.field_registry["evaluate"],
+        )
 
         f = self.mode_frames["sample"]
-        self.sample_fields = build_form(f, [
-            ("mean", "Sample mean (%)", 100.0),
-            ("se", "Sample within-loc SD", 2.2),
-            ("sm", "Sample between-loc SD", 2.46),
-            ("num", "Units per location", 6),
-            ("loc", "Number of locations", 10),
-            ("target", "Target / label claim (%)", 100.0),
-            ("cilevel", "Confidence level (%)", 95.0),
-        ], registry=self.field_registry["sample"])
+        self.sample_fields = build_form(
+            f,
+            [
+                ("mean", "Sample mean (%)", 100.0),
+                ("se", "Sample within-loc SD", 2.2),
+                ("sm", "Sample between-loc SD", 2.46),
+                ("num", "Units per location", 6),
+                ("loc", "Number of locations", 10),
+                ("target", "Target / label claim (%)", 100.0),
+                ("cilevel", "Confidence level (%)", 95.0),
+            ],
+            registry=self.field_registry["sample"],
+        )
 
     def _table_args(self):
         v = self.table_fields
@@ -1940,8 +2294,12 @@ class Cusp2Tab(BaseTab):
         target = v["target"].get(float)
         lbound = v["lbound"].get(float)
         cilevel = v["cilevel"].get(float)
-        se_vals = make_grid(v["se_low"].get(float), v["se_high"].get(float), v["se_step"].get(float), "SE")
-        sm_vals = make_grid(v["sm_low"].get(float), v["sm_high"].get(float), v["sm_step"].get(float), "SM")
+        se_vals = make_grid(
+            v["se_low"].get(float), v["se_high"].get(float), v["se_step"].get(float), "SE"
+        )
+        sm_vals = make_grid(
+            v["sm_low"].get(float), v["sm_high"].get(float), v["sm_step"].get(float), "SM"
+        )
         return num, loc, target, lbound, cilevel, se_vals, sm_vals
 
     def _run_table(self):
@@ -1954,33 +2312,51 @@ class Cusp2Tab(BaseTab):
                 progress(0.5, "Using cached table...")
                 return hit
             progress(0.2, "Computing acceptance table (Plan 2)...")
-            table = cusp2.acceptance_limit_table(num, loc, target, lbound, cilevel, se_vals, sm_vals)
+            table = cusp2.acceptance_limit_table(
+                num, loc, target, lbound, cilevel, se_vals, sm_vals
+            )
             self._table_cache[key] = table
             progress(1.0, "Table complete.")
             return table
+
         return job
 
     def _run_evaluate(self):
         num, loc, target, lbound, cilevel, se_vals, sm_vals = self._table_args()
-        u_vals = make_grid(self.eval_fields["u_low"].get(float), self.eval_fields["u_high"].get(float),
-                           self.eval_fields["u_step"].get(float), "U")
-        sigse_vals = make_grid(self.eval_fields["sigse_low"].get(float), self.eval_fields["sigse_high"].get(float),
-                               self.eval_fields["sigse_step"].get(float), "within-loc SD")
-        sigsm_vals = make_grid(self.eval_fields["sigsm_low"].get(float), self.eval_fields["sigsm_high"].get(float),
-                               self.eval_fields["sigsm_step"].get(float), "between-loc SD")
+        u_vals = make_grid(
+            self.eval_fields["u_low"].get(float),
+            self.eval_fields["u_high"].get(float),
+            self.eval_fields["u_step"].get(float),
+            "U",
+        )
+        sigse_vals = make_grid(
+            self.eval_fields["sigse_low"].get(float),
+            self.eval_fields["sigse_high"].get(float),
+            self.eval_fields["sigse_step"].get(float),
+            "within-loc SD",
+        )
+        sigsm_vals = make_grid(
+            self.eval_fields["sigsm_low"].get(float),
+            self.eval_fields["sigsm_high"].get(float),
+            self.eval_fields["sigsm_step"].get(float),
+            "between-loc SD",
+        )
         key = self._cache_key(num, loc, target, lbound, cilevel, se_vals, sm_vals)
 
         def job(progress):
             table = self._table_cache.get(key)
             if table is None:
                 progress(0.2, "Building acceptance table (Plan 2)...")
-                table = cusp2.acceptance_limit_table(num, loc, target, lbound, cilevel, se_vals, sm_vals)
+                table = cusp2.acceptance_limit_table(
+                    num, loc, target, lbound, cilevel, se_vals, sm_vals
+                )
                 self._table_cache[key] = table
             else:
                 progress(0.2, "Using cached table...")
             d1 = se_vals[1] - se_vals[0] if len(se_vals) > 1 else 0.1
             progress(0.6, "Evaluating probability grid...")
             return cusp2.probability_of_passing(table, num, loc, d1, u_vals, sigse_vals, sigsm_vals)
+
         return job
 
     def _run_sample(self):
@@ -1992,22 +2368,33 @@ class Cusp2Tab(BaseTab):
         loc = v["loc"].get(int)
         target = v["target"].get(float)
         cilevel = v["cilevel"].get(float)
-        return lambda progress: (progress(0.4, "Computing sample probability..."),
-                                 cusp2.sample_probability(mean, se, sm, num, loc, target, cilevel))[1]
+        return lambda progress: (
+            progress(0.4, "Computing sample probability..."),
+            cusp2.sample_probability(mean, se, sm, num, loc, target, cilevel),
+        )[1]
 
+    def _oc_available(self):
+        return True
 
-    def _oc_available(self): return True
     def _oc_context(self):
         v = self.table_fields
         num, loc = v["num"].get(int), v["loc"].get(int)
-        target = v["target"].get(float); lbound = v["lbound"].get(float); cilevel = v["cilevel"].get(float)
-        se_vals = make_grid(v["se_low"].get(float), v["se_high"].get(float), v["se_step"].get(float), "SE")
-        sm_vals = make_grid(v["sm_low"].get(float), v["sm_high"].get(float), v["sm_step"].get(float), "SM")
+        target = v["target"].get(float)
+        lbound = v["lbound"].get(float)
+        cilevel = v["cilevel"].get(float)
+        se_vals = make_grid(
+            v["se_low"].get(float), v["se_high"].get(float), v["se_step"].get(float), "SE"
+        )
+        sm_vals = make_grid(
+            v["sm_low"].get(float), v["sm_high"].get(float), v["sm_step"].get(float), "SM"
+        )
         d1 = se_vals[1] - se_vals[0] if len(se_vals) > 1 else 0.1
         key = self._cache_key(num, loc, target, lbound, cilevel, se_vals, sm_vals)
         table = self._table_cache.get(key)
         if table is None:
-            table = cusp2.acceptance_limit_table(num, loc, target, lbound, cilevel, se_vals, sm_vals)
+            table = cusp2.acceptance_limit_table(
+                num, loc, target, lbound, cilevel, se_vals, sm_vals
+            )
 
         def computed(xk, xs, fx):
             U = [float(x) for x in xs] if xk == "u" else [fx["U"]]
@@ -2021,48 +2408,67 @@ class Cusp2Tab(BaseTab):
             return U + rng.normal(0.0, fx["SM"], (reps, 1)) + rng.normal(0.0, SE, (reps, 30))
 
         return make_oc_context(
-            "cu", target, computed, make_units,
+            "cu",
+            target,
+            computed,
+            make_units,
             [("se", "True within-loc SD  [U, SM fixed]"), ("u", "True mean U  [SE, SM fixed]")],
             {"se": (0.5, 10.0, 0.25), "u": (85.0, 115.0, 1.0)},
-            {"se": [("U", target), ("SM", 2.2)], "u": [("SE", 2.2), ("SM", 2.2)]})
+            {"se": [("U", target), ("SM", 2.2)], "u": [("SE", 2.2), ("SM", 2.2)]},
+        )
 
 
 class Disp1Tab(BaseTab):
     DOMAIN = "DISSOLUTION"
     PLAN = 1
+
     def __init__(self, parent):
         super().__init__(parent, "Dissolution -- Sampling Plan 1", "Single location (USP <711>).")
 
     def _build_mode_frames(self):
         f = self.mode_frames["table"]
-        self.table_fields = build_form(f, [
-            ("number", "Number of units (N)", 6),
-            ("q", "Q value (%)", 80.0),
-            ("lbound", "Lower bound (%)", 95.0),
-            ("cilevel", "Confidence level (%)", 95.0),
-            ("meanadj_step", "Mean grid step", 1.0),
-        ], registry=self.field_registry["table"])
+        self.table_fields = build_form(
+            f,
+            [
+                ("number", "Number of units (N)", 6),
+                ("q", "Q value (%)", 80.0),
+                ("lbound", "Lower bound (%)", 95.0),
+                ("cilevel", "Confidence level (%)", 95.0),
+                ("meanadj_step", "Mean grid step", 1.0),
+            ],
+            registry=self.field_registry["table"],
+        )
 
         f = self.mode_frames["evaluate"]
-        ttk.Label(f, text="Builds the table above, then evaluates:", style="Muted.TLabel",
-                  wraplength=230).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 6))
-        self.eval_fields = build_form(f, [
-            ("u_low", "True mean U -- low", 90.0),
-            ("u_high", "True mean U -- high", 100.0),
-            ("u_step", "True mean U -- step", 2.5),
-            ("cv_low", "True CV(%) -- low", 1.0),
-            ("cv_high", "True CV(%) -- high", 4.0),
-            ("cv_step", "True CV(%) -- step", 1.0),
-        ], start_row=1, registry=self.field_registry["evaluate"])
+        ttk.Label(
+            f, text="Builds the table above, then evaluates:", style="Muted.TLabel", wraplength=230
+        ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 6))
+        self.eval_fields = build_form(
+            f,
+            [
+                ("u_low", "True mean U -- low", 90.0),
+                ("u_high", "True mean U -- high", 100.0),
+                ("u_step", "True mean U -- step", 2.5),
+                ("cv_low", "True CV(%) -- low", 1.0),
+                ("cv_high", "True CV(%) -- high", 4.0),
+                ("cv_step", "True CV(%) -- step", 1.0),
+            ],
+            start_row=1,
+            registry=self.field_registry["evaluate"],
+        )
 
         f = self.mode_frames["sample"]
-        self.sample_fields = build_form(f, [
-            ("mean", "Sample mean (%)", 90.0),
-            ("cv", "Sample CV (%)", 3.0),
-            ("number", "Number of units (N)", 6),
-            ("q", "Q value (%)", 80.0),
-            ("cilevel", "Confidence level (%)", 95.0),
-        ], registry=self.field_registry["sample"])
+        self.sample_fields = build_form(
+            f,
+            [
+                ("mean", "Sample mean (%)", 90.0),
+                ("cv", "Sample CV (%)", 3.0),
+                ("number", "Number of units (N)", 6),
+                ("q", "Q value (%)", 80.0),
+                ("cilevel", "Confidence level (%)", 95.0),
+            ],
+            registry=self.field_registry["sample"],
+        )
 
     def _run_table(self):
         v = self.table_fields
@@ -2083,6 +2489,7 @@ class Disp1Tab(BaseTab):
             self._table_cache[key] = table
             progress(1.0, "Table complete.")
             return table
+
         return job
 
     def _run_evaluate(self):
@@ -2091,10 +2498,18 @@ class Disp1Tab(BaseTab):
         q = v["q"].get(float)
         lbound = v["lbound"].get(float)
         cilevel = v["cilevel"].get(float)
-        u_vals = make_grid(self.eval_fields["u_low"].get(float), self.eval_fields["u_high"].get(float),
-                           self.eval_fields["u_step"].get(float), "U")
-        cv_vals = make_grid(self.eval_fields["cv_low"].get(float), self.eval_fields["cv_high"].get(float),
-                            self.eval_fields["cv_step"].get(float), "CV")
+        u_vals = make_grid(
+            self.eval_fields["u_low"].get(float),
+            self.eval_fields["u_high"].get(float),
+            self.eval_fields["u_step"].get(float),
+            "U",
+        )
+        cv_vals = make_grid(
+            self.eval_fields["cv_low"].get(float),
+            self.eval_fields["cv_high"].get(float),
+            self.eval_fields["cv_step"].get(float),
+            "CV",
+        )
         key = self._cache_key(number, q, lbound, cilevel)
 
         def job(progress):
@@ -2107,6 +2522,7 @@ class Disp1Tab(BaseTab):
                 progress(0.2, "Using cached table...")
             progress(0.6, "Evaluating probability grid...")
             return disp1.probability_of_passing(table, number, u_vals, cv_vals)
+
         return job
 
     def _run_sample(self):
@@ -2116,14 +2532,20 @@ class Disp1Tab(BaseTab):
         number = v["number"].get(int)
         q = v["q"].get(float)
         cilevel = v["cilevel"].get(float)
-        return lambda progress: (progress(0.4, "Computing sample probability..."),
-                                 disp1.sample_probability(mean, cv, number, q, cilevel))[1]
+        return lambda progress: (
+            progress(0.4, "Computing sample probability..."),
+            disp1.sample_probability(mean, cv, number, q, cilevel),
+        )[1]
 
-    def _oc_available(self): return True
+    def _oc_available(self):
+        return True
+
     def _oc_context(self):
         v = self.table_fields
-        number = v["number"].get(int); q = v["q"].get(float)
-        lbound = v["lbound"].get(float); cilevel = v["cilevel"].get(float)
+        number = v["number"].get(int)
+        q = v["q"].get(float)
+        lbound = v["lbound"].get(float)
+        cilevel = v["cilevel"].get(float)
         key = self._cache_key(number, q, lbound, cilevel)
         table = self._table_cache.get(key)
         if table is None:
@@ -2133,7 +2555,9 @@ class Disp1Tab(BaseTab):
             if xk == "cv":
                 res = disp1.probability_of_passing(table, number, [fx["U"]], [float(x) for x in xs])
             else:
-                res = disp1.probability_of_passing(table, number, [float(x) for x in xs], [fx["CV"]])
+                res = disp1.probability_of_passing(
+                    table, number, [float(x) for x in xs], [fx["CV"]]
+                )
             return _prob_series(res)
 
         def make_units(xk, x, fx, rng, reps):
@@ -2142,60 +2566,82 @@ class Disp1Tab(BaseTab):
             return rng.normal(U, U * CV / 100.0, (reps, 24))
 
         return make_oc_context(
-            "disp", q, computed, make_units,
+            "disp",
+            q,
+            computed,
+            make_units,
             [("cv", "True CV (%)  [U fixed]"), ("u", "True mean U (%)  [CV fixed]")],
             {"cv": (0.5, 15.0, 0.25), "u": (80.0, 120.0, 1.0)},
-            {"cv": [("U", 100.0)], "u": [("CV", 3.0)]})
+            {"cv": [("U", 100.0)], "u": [("CV", 3.0)]},
+        )
 
 
 class Disp2Tab(BaseTab):
     DOMAIN = "DISSOLUTION"
     PLAN = 2
+
     def __init__(self, parent):
-        super().__init__(parent, "Dissolution -- Sampling Plan 2",
-                         "Multiple locations, within/between-location variance components (USP <711>).")
+        super().__init__(
+            parent,
+            "Dissolution -- Sampling Plan 2",
+            "Multiple locations, within/between-location variance components (USP <711>).",
+        )
 
     def _build_mode_frames(self):
         f = self.mode_frames["table"]
-        self.table_fields = build_form(f, [
-            ("num", "Units per location", 6),
-            ("loc", "Number of locations", 5),
-            ("q", "Q value (%)", 80.0),
-            ("lbound", "Lower bound (%)", 95.0),
-            ("cilevel", "Confidence level (%)", 95.0),
-            ("se_low", "Within-loc SD -- low", 1.0),
-            ("se_high", "Within-loc SD -- high", 5.0),
-            ("se_step", "Within-loc SD -- step", 1.0),
-            ("sm_low", "Between-loc SD -- low", 1.0),
-            ("sm_high", "Between-loc SD -- high", 5.0),
-            ("sm_step", "Between-loc SD -- step", 1.0),
-        ], registry=self.field_registry["table"])
+        self.table_fields = build_form(
+            f,
+            [
+                ("num", "Units per location", 6),
+                ("loc", "Number of locations", 5),
+                ("q", "Q value (%)", 80.0),
+                ("lbound", "Lower bound (%)", 95.0),
+                ("cilevel", "Confidence level (%)", 95.0),
+                ("se_low", "Within-loc SD -- low", 1.0),
+                ("se_high", "Within-loc SD -- high", 5.0),
+                ("se_step", "Within-loc SD -- step", 1.0),
+                ("sm_low", "Between-loc SD -- low", 1.0),
+                ("sm_high", "Between-loc SD -- high", 5.0),
+                ("sm_step", "Between-loc SD -- step", 1.0),
+            ],
+            registry=self.field_registry["table"],
+        )
 
         f = self.mode_frames["evaluate"]
-        ttk.Label(f, text="Builds the table above, then evaluates:", style="Muted.TLabel",
-                  wraplength=230).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 6))
-        self.eval_fields = build_form(f, [
-            ("u_low", "True mean U -- low", 90.0),
-            ("u_high", "True mean U -- high", 100.0),
-            ("u_step", "True mean U -- step", 2.5),
-            ("sigse_low", "True within-loc SD -- low", 1.0),
-            ("sigse_high", "True within-loc SD -- high", 3.0),
-            ("sigse_step", "True within-loc SD -- step", 1.0),
-            ("sigsm_low", "True between-loc SD -- low", 1.0),
-            ("sigsm_high", "True between-loc SD -- high", 3.0),
-            ("sigsm_step", "True between-loc SD -- step", 1.0),
-        ], start_row=1, registry=self.field_registry["evaluate"])
+        ttk.Label(
+            f, text="Builds the table above, then evaluates:", style="Muted.TLabel", wraplength=230
+        ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 6))
+        self.eval_fields = build_form(
+            f,
+            [
+                ("u_low", "True mean U -- low", 90.0),
+                ("u_high", "True mean U -- high", 100.0),
+                ("u_step", "True mean U -- step", 2.5),
+                ("sigse_low", "True within-loc SD -- low", 1.0),
+                ("sigse_high", "True within-loc SD -- high", 3.0),
+                ("sigse_step", "True within-loc SD -- step", 1.0),
+                ("sigsm_low", "True between-loc SD -- low", 1.0),
+                ("sigsm_high", "True between-loc SD -- high", 3.0),
+                ("sigsm_step", "True between-loc SD -- step", 1.0),
+            ],
+            start_row=1,
+            registry=self.field_registry["evaluate"],
+        )
 
         f = self.mode_frames["sample"]
-        self.sample_fields = build_form(f, [
-            ("mean", "Sample mean (%)", 90.0),
-            ("se", "Sample within-loc SD", 2.2),
-            ("sm", "Sample between-loc SD", 2.46),
-            ("num", "Units per location", 6),
-            ("loc", "Number of locations", 5),
-            ("q", "Q value (%)", 80.0),
-            ("cilevel", "Confidence level (%)", 95.0),
-        ], registry=self.field_registry["sample"])
+        self.sample_fields = build_form(
+            f,
+            [
+                ("mean", "Sample mean (%)", 90.0),
+                ("se", "Sample within-loc SD", 2.2),
+                ("sm", "Sample between-loc SD", 2.46),
+                ("num", "Units per location", 6),
+                ("loc", "Number of locations", 5),
+                ("q", "Q value (%)", 80.0),
+                ("cilevel", "Confidence level (%)", 95.0),
+            ],
+            registry=self.field_registry["sample"],
+        )
 
     def _table_args(self):
         v = self.table_fields
@@ -2204,8 +2650,12 @@ class Disp2Tab(BaseTab):
         q = v["q"].get(float)
         lbound = v["lbound"].get(float)
         cilevel = v["cilevel"].get(float)
-        se_vals = make_grid(v["se_low"].get(float), v["se_high"].get(float), v["se_step"].get(float), "SE")
-        sm_vals = make_grid(v["sm_low"].get(float), v["sm_high"].get(float), v["sm_step"].get(float), "SM")
+        se_vals = make_grid(
+            v["se_low"].get(float), v["se_high"].get(float), v["se_step"].get(float), "SE"
+        )
+        sm_vals = make_grid(
+            v["sm_low"].get(float), v["sm_high"].get(float), v["sm_step"].get(float), "SM"
+        )
         return num, loc, q, lbound, cilevel, se_vals, sm_vals
 
     def _run_table(self):
@@ -2222,18 +2672,31 @@ class Disp2Tab(BaseTab):
             self._table_cache[key] = table
             progress(1.0, "Table complete.")
             return table
+
         return job
 
     def _run_evaluate(self):
         num, loc, q, lbound, cilevel, se_vals, sm_vals = self._table_args()
         dse = se_vals[1] - se_vals[0] if len(se_vals) > 1 else 1.0
         dsm = sm_vals[1] - sm_vals[0] if len(sm_vals) > 1 else 1.0
-        u_vals = make_grid(self.eval_fields["u_low"].get(float), self.eval_fields["u_high"].get(float),
-                           self.eval_fields["u_step"].get(float), "U")
-        sigse_vals = make_grid(self.eval_fields["sigse_low"].get(float), self.eval_fields["sigse_high"].get(float),
-                               self.eval_fields["sigse_step"].get(float), "within-loc SD")
-        sigsm_vals = make_grid(self.eval_fields["sigsm_low"].get(float), self.eval_fields["sigsm_high"].get(float),
-                               self.eval_fields["sigsm_step"].get(float), "between-loc SD")
+        u_vals = make_grid(
+            self.eval_fields["u_low"].get(float),
+            self.eval_fields["u_high"].get(float),
+            self.eval_fields["u_step"].get(float),
+            "U",
+        )
+        sigse_vals = make_grid(
+            self.eval_fields["sigse_low"].get(float),
+            self.eval_fields["sigse_high"].get(float),
+            self.eval_fields["sigse_step"].get(float),
+            "within-loc SD",
+        )
+        sigsm_vals = make_grid(
+            self.eval_fields["sigsm_low"].get(float),
+            self.eval_fields["sigsm_high"].get(float),
+            self.eval_fields["sigsm_step"].get(float),
+            "between-loc SD",
+        )
         key = self._cache_key(num, loc, q, lbound, cilevel, se_vals, sm_vals)
 
         def job(progress):
@@ -2245,7 +2708,10 @@ class Disp2Tab(BaseTab):
             else:
                 progress(0.2, "Using cached table...")
             progress(0.6, "Evaluating probability grid...")
-            return disp2.probability_of_passing(table, num, loc, dse, dsm, u_vals, sigse_vals, sigsm_vals)
+            return disp2.probability_of_passing(
+                table, num, loc, dse, dsm, u_vals, sigse_vals, sigsm_vals
+            )
+
         return job
 
     def _run_sample(self):
@@ -2257,17 +2723,26 @@ class Disp2Tab(BaseTab):
         loc = v["loc"].get(int)
         q = v["q"].get(float)
         cilevel = v["cilevel"].get(float)
-        return lambda progress: (progress(0.4, "Computing sample probability..."),
-                                 disp2.sample_probability(mean, se, sm, num, loc, q, cilevel))[1]
+        return lambda progress: (
+            progress(0.4, "Computing sample probability..."),
+            disp2.sample_probability(mean, se, sm, num, loc, q, cilevel),
+        )[1]
 
+    def _oc_available(self):
+        return True
 
-    def _oc_available(self): return True
     def _oc_context(self):
         v = self.table_fields
         num, loc = v["num"].get(int), v["loc"].get(int)
-        q = v["q"].get(float); lbound = v["lbound"].get(float); cilevel = v["cilevel"].get(float)
-        se_vals = make_grid(v["se_low"].get(float), v["se_high"].get(float), v["se_step"].get(float), "SE")
-        sm_vals = make_grid(v["sm_low"].get(float), v["sm_high"].get(float), v["sm_step"].get(float), "SM")
+        q = v["q"].get(float)
+        lbound = v["lbound"].get(float)
+        cilevel = v["cilevel"].get(float)
+        se_vals = make_grid(
+            v["se_low"].get(float), v["se_high"].get(float), v["se_step"].get(float), "SE"
+        )
+        sm_vals = make_grid(
+            v["sm_low"].get(float), v["sm_high"].get(float), v["sm_step"].get(float), "SM"
+        )
         dse = se_vals[1] - se_vals[0] if len(se_vals) > 1 else 1.0
         dsm = sm_vals[1] - sm_vals[0] if len(sm_vals) > 1 else 1.0
         key = self._cache_key(num, loc, q, lbound, cilevel, se_vals, sm_vals)
@@ -2287,10 +2762,14 @@ class Disp2Tab(BaseTab):
             return U + rng.normal(0.0, fx["SM"], (reps, 1)) + rng.normal(0.0, SE, (reps, 24))
 
         return make_oc_context(
-            "disp", q, computed, make_units,
+            "disp",
+            q,
+            computed,
+            make_units,
             [("se", "True within-loc SD  [U, SM fixed]"), ("u", "True mean U  [SE, SM fixed]")],
             {"se": (0.5, 15.0, 0.25), "u": (80.0, 120.0, 1.0)},
-            {"se": [("U", 100.0), ("SM", 2.2)], "u": [("SE", 2.2), ("SM", 2.2)]})
+            {"se": [("U", 100.0), ("SM", 2.2)], "u": [("SE", 2.2), ("SM", 2.2)]},
+        )
 
 
 class SplashScreen:
@@ -2303,14 +2782,19 @@ class SplashScreen:
         self.root = tk.Tk()
         self.root.overrideredirect(True)
         self.root.configure(bg=self.BG)
-        self.root.geometry(f"{self.W}x{self.H}"
-                           f"+{(self.root.winfo_screenwidth() - self.W) // 2}"
-                           f"+{(self.root.winfo_screenheight() - self.H) // 2}")
+        self.root.geometry(
+            f"{self.W}x{self.H}"
+            f"+{(self.root.winfo_screenwidth() - self.W) // 2}"
+            f"+{(self.root.winfo_screenheight() - self.H) // 2}"
+        )
 
         ttk.Style(self.root).configure(
             "Splash.Horizontal.TProgressbar",
-            troughcolor="#123a6e", background=self.ACCENT,
-            borderwidth=0, thickness=10)
+            troughcolor="#123a6e",
+            background=self.ACCENT,
+            borderwidth=0,
+            thickness=10,
+        )
 
         inner = tk.Frame(self.root, bg=self.BG)
         inner.pack(fill="both", expand=True, padx=30, pady=20)
@@ -2321,10 +2805,17 @@ class SplashScreen:
         tk.Frame(foot, bg="#1e4a86", height=1).pack(fill="x", pady=(0, 8))
         row = tk.Frame(foot, bg=self.BG)
         row.pack()
-        tk.Label(row, text="Program developed by: ", bg=self.BG, fg="#bcd4f5",
-                 font=("Segoe UI", 9)).pack(side="left")
-        link = tk.Label(row, text="Moaz El-Essawey", bg=self.BG, fg=self.ACCENT,
-                        font=("Segoe UI", 9, "underline"), cursor="hand2")
+        tk.Label(
+            row, text="Program developed by: ", bg=self.BG, fg="#bcd4f5", font=("Segoe UI", 9)
+        ).pack(side="left")
+        link = tk.Label(
+            row,
+            text="Moaz El-Essawey",
+            bg=self.BG,
+            fg=self.ACCENT,
+            font=("Segoe UI", 9, "underline"),
+            cursor="hand2",
+        )
         link.pack(side="left")
         link.bind("<Button-1>", lambda _e: webbrowser.open(REPO_URL))
 
@@ -2335,29 +2826,41 @@ class SplashScreen:
                 img = tk.PhotoImage(file=logo_file)
                 if img.height() > 96:
                     img = img.subsample(max(1, img.height() // 96))
-                self._logo = img                      # keep a reference
+                self._logo = img  # keep a reference
                 tk.Label(inner, image=img, bg=self.BG).pack(pady=(6, 4))
             except tk.TclError:
                 pass
-        tk.Label(inner, text="PyCuDAL", bg=self.BG, fg="white",
-                 font=("Segoe UI", 26, "bold")).pack()
-        tk.Label(inner, bg=self.BG, fg="#bcd4f5", font=("Segoe UI", 10),
-                 justify="center",
-                 text="Parametric acceptance limits for USP <905> Content\n"
-                      "Uniformity and USP <711> Dissolution").pack(pady=(2, 16))
+        tk.Label(
+            inner, text="PyCuDAL", bg=self.BG, fg="white", font=("Segoe UI", 26, "bold")
+        ).pack()
+        tk.Label(
+            inner,
+            bg=self.BG,
+            fg="#bcd4f5",
+            font=("Segoe UI", 10),
+            justify="center",
+            text="Parametric acceptance limits for USP <905> Content\n"
+            "Uniformity and USP <711> Dissolution",
+        ).pack(pady=(2, 16))
 
-        self.bar = ttk.Progressbar(inner, style="Splash.Horizontal.TProgressbar",
-                                   mode="determinate", maximum=100, length=440)
+        self.bar = ttk.Progressbar(
+            inner,
+            style="Splash.Horizontal.TProgressbar",
+            mode="determinate",
+            maximum=100,
+            length=440,
+        )
         self.bar.pack(pady=(0, 8))
-        self.status = tk.Label(inner, text="Starting…", bg=self.BG,
-                               fg="#9fc3f2", font=("Segoe UI", 9))
+        self.status = tk.Label(
+            inner, text="Starting…", bg=self.BG, fg="#9fc3f2", font=("Segoe UI", 9)
+        )
         self.status.pack()
 
     def set_progress(self, frac, msg):
         self.bar["value"] = frac * 100
         self.status.config(text=msg)
         self.root.update()
-        time.sleep(0.08)          # small pacing so the splash is perceptible
+        time.sleep(0.08)  # small pacing so the splash is perceptible
 
     def close(self):
         try:
@@ -2379,15 +2882,21 @@ def _load_libraries(splash=None):
 
     step(0.05, "Loading NumPy…")
     import numpy as _np
+
     np = _np
 
     step(0.20, "Loading Pandas…")
     import pandas as _pd
+
     pd = _pd
 
     step(0.40, "Loading CuDAL core…")
     try:
-        from cudal import cusp1 as _a, cusp2 as _b, disp1 as _c, disp2 as _d
+        from cudal import cusp1 as _a
+        from cudal import cusp2 as _b
+        from cudal import disp1 as _c
+        from cudal import disp2 as _d
+
         cusp1, cusp2, disp1, disp2 = _a, _b, _c, _d
         HAVE_CUDAL = True
     except Exception:
@@ -2396,6 +2905,7 @@ def _load_libraries(splash=None):
     step(0.60, "Loading SciPy…")
     try:
         from scipy.interpolate import make_interp_spline as _mis
+
         make_interp_spline = _mis
         HAVE_SPLINE = True
     except Exception:
@@ -2403,9 +2913,10 @@ def _load_libraries(splash=None):
 
     step(0.75, "Loading Matplotlib…")
     try:
+        from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg as _C
+        from matplotlib.backends.backend_tkagg import NavigationToolbar2Tk as _T
         from matplotlib.figure import Figure as _F
-        from matplotlib.backends.backend_tkagg import (
-            FigureCanvasTkAgg as _C, NavigationToolbar2Tk as _T)
+
         Figure, FigureCanvasTkAgg, NavigationToolbar2Tk = _F, _C, _T
         HAVE_MPL = True
     except Exception:
@@ -2414,18 +2925,22 @@ def _load_libraries(splash=None):
     step(0.90, "Loading export engines…")
     try:
         import openpyxl  # noqa: F401
+
         HAVE_XLSX = True
     except Exception:
         HAVE_XLSX = False
     try:
+        from reportlab.lib.pagesizes import landscape as _ls
+        from reportlab.lib.pagesizes import letter as _lt
         from reportlab.pdfgen import canvas as _rc
-        from reportlab.lib.pagesizes import letter as _lt, landscape as _ls
+
         rl_canvas, letter, landscape = _rc, _lt, _ls
         HAVE_PDF = True
     except Exception:
         HAVE_PDF = False
 
     step(1.0, "Ready.")
+
 
 # ---------------------------------------------------------------------------
 # Main application window
@@ -2450,19 +2965,107 @@ class CudalApp(tk.Tk):
 
         self._settings = self._load_settings()
 
-        # ---- menu bar -------------------------------------------------------
+        # ---- comprehensive menu bar ----------------------------------------
         menubar = tk.Menu(self)
+
         filem = tk.Menu(menubar, tearoff=0)
-        filem.add_command(label="Export current results (CSV)", accelerator="Ctrl+E",
-                          command=self._export_current_csv)
+        filem.add_command(
+            label="Export current results (CSV)",
+            accelerator="Ctrl+E",
+            command=self._export_current_csv,
+        )
+        filem.add_command(label="Export current results (PDF)", command=self._export_current_pdf)
         filem.add_command(label="Export all results (XLSX)", command=self._export_all_xlsx)
+        filem.add_separator()
+        filem.add_command(
+            label="Save settings now", accelerator="Ctrl+S", command=self._save_settings_now
+        )
         filem.add_separator()
         filem.add_command(label="Exit", command=self._on_close)
         menubar.add_cascade(label="File", menu=filem)
+
+        runm = tk.Menu(menubar, tearoff=0)
+        runm.add_command(
+            label="Run analysis",
+            accelerator="Ctrl+R",
+            command=lambda: self._current_tab()._on_run(),
+        )
+        runm.add_command(
+            label="Reset parameters", command=lambda: self._current_tab()._reset_defaults()
+        )
+        runm.add_separator()
+        runm.add_command(
+            label="Plot results",
+            accelerator="Ctrl+P",
+            command=lambda: self._current_tab().results._show_plot(),
+        )
+        runm.add_command(
+            label="OC curve\u2026", accelerator="Ctrl+O", command=self._show_oc_current
+        )
+        runm.add_separator()
+        runm.add_command(
+            label="Copy selection", accelerator="Ctrl+C", command=self._copy_current_selection
+        )
+        runm.add_command(label="Clear results", command=lambda: self._current_tab().results.clear())
+        menubar.add_cascade(label="Run", menu=runm)
+
+        viewm = tk.Menu(menubar, tearoff=0)
+        for i, label in enumerate(
+            (
+                "Content Uniformity \u2013 Plan 1",
+                "Content Uniformity \u2013 Plan 2",
+                "Dissolution \u2013 Plan 1",
+                "Dissolution \u2013 Plan 2",
+            )
+        ):
+            viewm.add_command(
+                label=label,
+                accelerator=f"Ctrl+{i + 1}",
+                command=lambda i=i: self.notebook.select(i),
+            )
+        menubar.add_cascade(label="View", menu=viewm)
+
         helpm = tk.Menu(menubar, tearoff=0)
+        helpm.add_command(label="Documentation (online)", command=lambda: webbrowser.open(REPO_URL))
+        helpm.add_command(
+            label="Report an issue", command=lambda: webbrowser.open(REPO_URL + "/issues")
+        )
+        helpm.add_separator()
         helpm.add_command(label="About / Help", accelerator="F1", command=self._show_about)
         menubar.add_cascade(label="Help", menu=helpm)
         self.config(menu=menubar)
+
+        # ---- action toolbar --------------------------------------------------
+        tb = ttk.Frame(self, style="TFrame")
+        tb.pack(fill="x", padx=14, pady=(8, 0))
+
+        def tbtn(text, cmd, tip):
+            b = ttk.Button(tb, text=text, style="Secondary.TButton", command=cmd)
+            b.pack(side="left", padx=(0, 4))
+            ToolTip(b, tip)
+            return b
+
+        tbtn(
+            "\u25b6 Run",
+            lambda: self._current_tab()._on_run(),
+            "Run the selected analysis (Ctrl+R)",
+        )
+        tbtn(
+            "\u223f Plot", lambda: self._current_tab().results._show_plot(), "Plot results (Ctrl+P)"
+        )
+        tbtn(
+            "\u2277 OC Curve", self._show_oc_current, "OC curve: computed plan vs USP test (Ctrl+O)"
+        )
+        tbtn("\u2913 CSV", self._export_current_csv, "Export current results to CSV (Ctrl+E)")
+        tbtn("\u2261 PDF", self._export_current_pdf, "Export current results to SAS-style PDF")
+        tbtn("\u25a6 XLSX", self._export_all_xlsx, "Export all results to Excel")
+        tbtn(
+            "\u21ba Reset",
+            lambda: self._current_tab()._reset_defaults(),
+            "Reset parameters to defaults",
+        )
+        ttk.Separator(tb, orient="vertical").pack(side="left", fill="y", padx=6)
+        tbtn("? About", self._show_about, "About PyCuDAL (F1)")
 
         # ---- header ---------------------------------------------------------
         top = ttk.Frame(self, style="TFrame")
@@ -2478,22 +3081,54 @@ class CudalApp(tk.Tk):
         if not self._logo_img:
             ttk.Label(top, text="PyCuDAL", style="Header.TLabel").pack(side="left")
 
-        ttk.Label(top, text="   Parametric acceptance limits for USP <905> Content Uniformity "
-                             "and USP <711> Dissolution", style="SubHeader.TLabel").pack(side="left")
+        ttk.Label(
+            top,
+            text="   Parametric acceptance limits for USP <905> Content Uniformity "
+            "and USP <711> Dissolution",
+            style="SubHeader.TLabel",
+        ).pack(side="left")
 
         # ---- tabs -----------------------------------------------------------
         self.notebook = ttk.Notebook(self)
         self.notebook.pack(fill="both", expand=True, padx=14, pady=14)
-        self.tabs = [Cusp1Tab(self.notebook), Cusp2Tab(self.notebook),
-                     Disp1Tab(self.notebook), Disp2Tab(self.notebook)]
-        for tab, text in zip(self.tabs,
-                             ["  Content Uniformity -- Plan 1  ", "  Content Uniformity -- Plan 2  ",
-                              "  Dissolution -- Plan 1  ", "  Dissolution -- Plan 2  "]):
+        self.tabs = [
+            Cusp1Tab(self.notebook),
+            Cusp2Tab(self.notebook),
+            Disp1Tab(self.notebook),
+            Disp2Tab(self.notebook),
+        ]
+        for tab, text in zip(
+            self.tabs,
+            [
+                "  Content Uniformity -- Plan 1  ",
+                "  Content Uniformity -- Plan 2  ",
+                "  Dissolution -- Plan 1  ",
+                "  Dissolution -- Plan 2  ",
+            ],
+        ):
             self.notebook.add(tab, text=text)
 
-        self.status_bar = ttk.Label(self, text=f"Ready. (Tk {tk.TkVersion})",
-                                    style="Status.TLabel", anchor="w")
-        self.status_bar.pack(fill="x", side="bottom", padx=14, pady=(0, 8))
+        # ---- footer / status bar ------------------------------------------------
+        footer = ttk.Frame(self, style="TFrame")
+        footer.pack(fill="x", side="bottom", padx=14, pady=(0, 8))
+
+        self.status_bar = ttk.Label(
+            footer, text=f"Ready. (Tk {tk.TkVersion})", style="Status.TLabel", anchor="w"
+        )
+        self.status_bar.pack(side="left")
+
+        credit_lbl = ttk.Label(
+            footer,
+            text="Created by Moaz El-Essawey",
+            style="Status.TLabel",
+            anchor="e",
+            cursor="hand2",
+        )
+        credit_lbl.configure(foreground=ACCENT)
+        credit_lbl.pack(side="right")
+        credit_lbl.bind(
+            "<Button-1>", lambda _e: webbrowser.open("https://github.com/moazelessawey/pycudal")
+        )
 
         # ---- restore persisted state -----------------------------------------
         for tab in self.tabs:
@@ -2516,6 +3151,11 @@ class CudalApp(tk.Tk):
         self.bind("<Control-p>", lambda _e: self._current_tab().results._show_plot())
         self.bind("<F1>", lambda _e: self._show_about())
 
+        for i in range(4):
+            self.bind(f"<Control-Key-{i + 1}>", lambda _e, i=i: self.notebook.select(i))
+        self.bind("<Control-o>", lambda _e: self._show_oc_current())
+        self.bind("<Control-s>", lambda _e: self._save_settings_now())
+
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
     # -- helpers -----------------------------------------------------------------
@@ -2525,7 +3165,7 @@ class CudalApp(tk.Tk):
     @staticmethod
     def _load_settings():
         try:
-            with open(SETTINGS_PATH, "r", encoding="utf-8") as fh:
+            with open(SETTINGS_PATH, encoding="utf-8") as fh:
                 return json.load(fh)
         except Exception:
             return {}
@@ -2550,18 +3190,52 @@ class CudalApp(tk.Tk):
     def _export_current_csv(self):
         self._current_tab().results._export_csv()
 
+    # -- top-bar dispatchers (guarded for optional features) ------------------
+    def _export_current_pdf(self):
+        r = self._current_tab().results
+        if hasattr(r, "_export_pdf"):
+            r._export_pdf()
+        else:
+            messagebox.showinfo("Unavailable", "PDF export is not included in this build.")
+
+    def _show_oc_current(self):
+        t = self._current_tab()
+        if hasattr(t, "_show_oc"):
+            t._show_oc()
+        else:
+            messagebox.showinfo("Unavailable", "OC curves are not included in this build.")
+
+    def _copy_current_selection(self):
+        r = self._current_tab().results
+        if hasattr(r, "_copy_selection"):
+            r._copy_selection()
+
+    def _save_settings_now(self):
+        self._save_settings()
+        self.status_bar.configure(text="Settings saved.")
+
     def _export_all_xlsx(self):
         if not HAVE_XLSX:
-            messagebox.showerror("Excel export unavailable",
-                                 "openpyxl is required.\nInstall it with:  pip install openpyxl")
+            messagebox.showerror(
+                "Excel export unavailable",
+                "openpyxl is required.\nInstall it with:  pip install openpyxl",
+            )
             return
-        sheets = {tab.__class__.__name__: tab.results._df
-                  for tab in self.tabs if tab.results._df is not None}
+        sheets = {
+            tab.__class__.__name__: tab.results._df
+            for tab in self.tabs
+            if tab.results._df is not None
+        }
         if not sheets:
             messagebox.showinfo("Nothing to export", "Run at least one analysis first.")
             return
-        path = filedialog.asksaveasfilename(defaultextension=".xlsx",
-                                            filetypes=[("Excel workbook", "*.xlsx")])
+
+        path = filedialog.asksaveasfilename(
+            defaultextension=".xlsx",
+            filetypes=[("Excel workbook", "*.xlsx")],
+            initialfile=f"PyCuDAL-all-results-{time.strftime('%Y%m%d-%H%M')}.xlsx",
+        )
+
         if not path:
             return
         with pd.ExcelWriter(path, engine="openpyxl") as writer:
@@ -2570,22 +3244,30 @@ class CudalApp(tk.Tk):
         messagebox.showinfo("Exported", f"Saved {len(sheets)} sheet(s) to {path}")
 
     def _show_about(self):
-        deps = (f"matplotlib: {'yes' if HAVE_MPL else 'no'}\n"
-                f"scipy splines: {'yes' if HAVE_SPLINE else 'no'}\n"
-                f"openpyxl (xlsx): {'yes' if HAVE_XLSX else 'no'}")
-        messagebox.showinfo(
-            "About CuDAL",
-            f"CuDAL GUI {VERSION}\n\n"
+        deps = (
+            f"matplotlib: {'yes' if HAVE_MPL else 'no'}\n"
+            f"scipy splines: {'yes' if HAVE_SPLINE else 'no'}\n"
+            f"openpyxl (xlsx): {'yes' if HAVE_XLSX else 'no'}\n"
+            f"reportlab (pdf): {'yes' if HAVE_PDF else 'no'}"
+        )
+        about_text = (
+            f"PyCuDAL v{VERSION}\n\n"
             "Parametric acceptance limits for USP <905> Content Uniformity\n"
-            "and USP <711> Dissolution (mirrors SAS CALCUSPx/CALDISPx,\n"
-            "EVCUSPx/EVDISPx, SMPCUSPx/SMPDISPx).\n\n"
+            "and USP <711> Dissolution.\n\n"
+            "This tool mirrors the functionality of the original SAS programs\n"
+            "(CALCUSPx/CALDISPx, EVCUSPx/EVDISPx, SMPCUSPx/SMPDISPx)\n"
+            "developed by James Bergum, Ph.D.\n\n"
+            "Created & Maintained by: Moaz El-Essawey\n"
+            "GitHub: https://github.com/moazelessawey/pycudal\n\n"
             "Shortcuts:\n"
             "  Ctrl+R  run analysis\n"
             "  Ctrl+E  export current results (CSV)\n"
             "  Ctrl+P  plot results\n"
             "  Ctrl+C  copy selected table rows\n"
             "  F1      this dialog\n\n"
-            f"Optional dependencies:\n{deps}\n\nTk version: {tk.TkVersion}")
+            f"Optional dependencies:\n{deps}\n\nTk version: {tk.TkVersion}"
+        )
+        messagebox.showinfo("About PyCuDAL", about_text)
 
 
 # ---------------------------------------------------------------------------
@@ -2604,6 +3286,7 @@ def run_selftest():
     assert len(xx) == len(yy) == 300
     print("selftest OK")
 
+
 def main():
     if "--selftest" in sys.argv:
         _load_libraries(None)
@@ -2612,6 +3295,7 @@ def main():
 
     try:  # Windows DPI awareness before any window is created
         from ctypes import windll
+
         windll.shcore.SetProcessDpiAwareness(1)
     except Exception:
         pass
@@ -2621,17 +3305,20 @@ def main():
 
     if not HAVE_CUDAL:
         splash.close()
-        root = tk.Tk(); root.withdraw()
+        root = tk.Tk()
+        root.withdraw()
         messagebox.showerror(
             "Missing dependency",
             "The `cudal` package could not be imported.\n"
             "Put this script next to the `cudal` package folder\n"
-            "or install it, then restart the GUI.")
+            "or install it, then restart the GUI.",
+        )
         sys.exit(1)
 
     splash.close()
     app = CudalApp()
     app.mainloop()
+
 
 if __name__ == "__main__":
     main()

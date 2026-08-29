@@ -26,7 +26,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from .core import probit, cinv, probnorm, probchi, dissolution_bound, batched_root_find
+from .core import batched_root_find, cinv, dissolution_bound, probchi, probit, probnorm
 
 
 def acceptance_limit_table(
@@ -65,7 +65,7 @@ def acceptance_limit_table(
     meanadjs = np.round(np.arange(meanadj_step, lim + meanadj_step / 2, meanadj_step), 6)
 
     def overbd_of_sd(sampsd):
-        sigma = np.sqrt((n - 1) * sampsd ** 2 / chi)
+        sigma = np.sqrt((n - 1) * sampsd**2 / chi)
         llu = meanadjs - z * sigma / np.sqrt(n)
         return dissolution_bound(llu, sigma) - target_prob
 
@@ -105,16 +105,16 @@ def probability_of_passing(
     std = (t["MEAN"] * t["CV"] / 100).to_numpy()
     n = number
 
-    u = np.asarray(u_values, dtype=float)[None, :, None]      # (1, U, 1)
-    cv = np.asarray(cv_values, dtype=float)[None, None, :]    # (1, 1, CV)
-    sigma = u * cv / 100                                       # (1, U, CV)
+    u = np.asarray(u_values, dtype=float)[None, :, None]  # (1, U, 1)
+    cv = np.asarray(cv_values, dtype=float)[None, None, :]  # (1, 1, CV)
+    sigma = u * cv / 100  # (1, U, CV)
 
     # main pairwise (trapezoid-style) term, rows 2..end
     x_hi, x_lo = x[1:, None, None], x[:-1, None, None]
     std_hi, std_lo = std[1:, None, None], std[:-1, None, None]
     pmean = probnorm((x_hi - u) * np.sqrt(n) / sigma) - probnorm((x_lo - u) * np.sqrt(n) / sigma)
     aveht = (std_hi + std_lo) / 2
-    pstd = probchi((n - 1) * aveht ** 2 / sigma ** 2, n - 1)
+    pstd = probchi((n - 1) * aveht**2 / sigma**2, n - 1)
     ptrap = np.sum(pmean * pstd, axis=0)  # (U, CV)
 
     # extra upper-tail correction for every row with X > 99.9
@@ -123,7 +123,7 @@ def probability_of_passing(
         xt = x[tail_mask][:, None, None]
         stdt = std[tail_mask][:, None, None]
         pmean_t = 1 - probnorm((xt - u) * np.sqrt(n) / sigma)
-        pstd_t = probchi((n - 1) * stdt ** 2 / sigma ** 2, n - 1)
+        pstd_t = probchi((n - 1) * stdt**2 / sigma**2, n - 1)
         ptrap = ptrap + np.sum(pmean_t * pstd_t, axis=0)
 
     u_flat = np.asarray(u_values, dtype=float)
@@ -151,7 +151,7 @@ def sample_probability(
 
     meanadj = mean - q
     sampsd = mean * cv / 100
-    sigma = np.sqrt((n - 1) * sampsd ** 2 / chi)
+    sigma = np.sqrt((n - 1) * sampsd**2 / chi)
     llu = meanadj - z * sigma / np.sqrt(n)
     overbd = dissolution_bound(llu, sigma)
 
