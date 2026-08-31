@@ -1,0 +1,117 @@
+\documentclass{article}
+\usepackage{amsmath, amssymb, amsfonts}
+\usepackage[margin=1in]{geometry}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{graphicx} % Added for logo insertion
+\usepackage{xcolor}   % Added for text coloring
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.5em}
+
+% Footer configuration
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\rfoot{Page \thepage\ of \pageref{LastPage}} % Right-aligned footer
+
+% Define the custom color for the title here (using RGB values). 
+% Adjust the 0, 80, 160 to match your exact brand color.
+\definecolor{TitleColor}{RGB}{0, 80, 160}
+
+\begin{document}
+
+% Placeholder for the logo. Ensure your logo image is in the same folder as this .tex file.
+% Replace 'logo.png' with your actual file name (e.g., logo.jpg, logo.pdf).
+\hfill\includegraphics[width=1.2in]{logo.png} \\[1em]
+
+\begin{flushleft}
+\textcolor{TitleColor}{\textbf{\Large APPENDIX E --- MATH / LOWER BOUND CALCULATIONS}}
+\end{flushleft}
+
+
+\section*{USP Content Uniformity and Dissolution Tests}
+
+\subsection*{Content Uniformity (USP 905)}
+
+\textbf{Stage 1)} Test 10 dosage units. Requirements are met if the acceptance value of the first 10 units satisfies
+$$AV \le L_1 = 15$$
+Otherwise go to Stage 2.
+
+\textbf{Stage 2)} Test an additional 20 units. Pass if, for all 30 units:
+$$AV_{30} \le 15 \quad\text{and}\quad |x_i - M| \le 0.25\,M \;\; \forall i$$
+
+The acceptance value is defined as
+$$AV = |M - \bar{X}| + k\,s, \qquad k = \begin{cases} 2.4 & n = 10 \\ 2.0 & n = 30 \end{cases}$$
+where $\bar{X}$ is the sample mean and $s$ the sample standard deviation. $M$ is based on the target $T$ (average of the monograph potency limits, \% of label claim):
+
+For $T \le 101.5$:
+$$M = \begin{cases} \max(98.5,\ \bar{X}) & \text{if } \bar{X} \le 100 \\ \min(101.5,\ \bar{X}) & \text{if } \bar{X} > 100 \end{cases}$$
+
+For $T > 101.5$:
+$$M = \begin{cases} \max(98.5,\ \bar{X}) & \text{if } \bar{X} \le 100 \\ \min(T,\ \bar{X}) & \text{if } \bar{X} > 100 \end{cases}$$
+
+\subsection*{Dissolution (USP 711)}
+
+\textbf{Stage 1)} Test 6 units. Pass if
+$$x_i \ge Q + 5 \quad \forall\, i = 1,\dots,6$$
+
+\textbf{Stage 2)} Test 6 additional units. Pass if
+$$\bar{x}_{12} \ge Q \quad\text{and}\quad x_i > Q - 15 \quad \forall i$$
+
+\textbf{Stage 3)} Test 12 additional units. Pass if
+$$\bar{x}_{24} \ge Q,$$
+with no more than two results $\le Q - 15$ and no result $\le Q - 25$. Otherwise Fail.
+
+\section*{Statistical Methods}
+
+Assume normal dosage-unit results $X_i \sim \mathcal{N}(\mu, \sigma^2)$. Then
+$$Z_1 = \bar{X} \sim \mathcal{N}\!\left(\mu, \tfrac{\sigma}{\sqrt{n}}\right), \qquad Z_2 = \frac{(n-1)s^2}{\sigma^2} \sim \chi^2_{n-1}$$
+are independent, and the overall lower bound of passing the USP test is
+$$P(\text{pass}) \ge \max\{P(S_1),\, P(S_2)\}$$
+
+\subsection*{Computation of $P(S_1)$}
+
+With $L_1 = 15$ and $k_1 = 2.4$:
+$$P(S_1) = \big(\Phi(t_1) - \Phi(t_2)\big)\; P\!\left(\chi^2_{n-1} < \frac{(n-1)L_1^2}{k_1^2\,\sigma^2}\right) + I_2 + I_3$$
+$$t_1 = \frac{101.5 - \mu}{\sigma/\sqrt{n}}, \qquad t_2 = \frac{98.5 - \mu}{\sigma/\sqrt{n}}$$
+
+The tail integrals are evaluated numerically with step $h = 0.05$:
+$$I_2 = \sum_{i=1}^{K} \big[\Phi(z_0 + ih) - \Phi(z_0 + (i-1)h)\big]\; P\!\big(\chi^2_{n-1} < g(z_0 + (i-\tfrac{1}{2})h)\big)$$
+$$g(z_1) = \frac{(n-1)\,\big(L_1 + 101.5 - z_1\big)^2}{k_1^2\,\sigma^2}$$
+$$I_3 = \sum_{i=1}^{K} \big[\Phi(z_0 + ih) - \Phi(z_0 + (i-1)h)\big]\; P\!\big(\chi^2_{n-1} < q(z_0 + (i-\tfrac{1}{2})h)\big)$$
+$$q(z_1) = \frac{(n-1)\,\big(L_1 - 98.5 + z_1\big)^2}{k_1^2\,\sigma^2}$$
+
+\subsection*{Computation of $P(S_2)$}
+
+Let $C_{21}$ = ``AV of the 30 units $\le L_1$'' and $C_{22}$ = ``no unit deviates from $M$ by more than $L_2 = 25$''. Using $P(A \cap B) \ge P(A) + P(B) - 1$:
+$$P(S_2) = P(C_{21} \cap C_{22}) \ge \max\{P(C_{21}) + P(C_{22}) - 1,\; 0\}$$
+
+$P(C_{21})$ is computed exactly like $P(S_1)$ with $n = 30$, $k_2 = 2.0$, and
+$$P(C_{22}) \ge \left[ \Phi\!\left(\frac{98.5 + L_2 - \mu}{\sigma/\sqrt{n}}\right) - \Phi\!\left(\frac{101.5 - L_2 - \mu}{\sigma/\sqrt{n}}\right) \right]^{n}$$
+(replace $101.5$ by $T$ when $T > 101.5$).
+
+\subsection*{Dissolution stage probabilities}
+
+Let $\ell$ be the adjusted lower bound on the mean offset from $Q$
+($\ell = (\text{mean} - Q) - z\,SE_{\text{mean}}$); units are
+$x \sim \mathcal{N}(Q + \ell, \sigma)$. The three stage bounds are
+$$F_1 = \big[P(x \ge Q+5)\big]^6 = \left[1 - \Phi\!\left(\frac{5 - \ell}{\sigma}\right)\right]^6$$
+$$F_2 = \big[P(x \ge Q-15)\big]^{12} - P(\bar{x}_{12} < Q)$$
+$$F_3 = p_3^{24} + 24\,p_2\,p_3^{23} + 276\,p_2^2\,p_3^{22} - P(\bar{x}_{24} < Q)$$
+with
+$$p_2 = \Phi\!\left(\frac{-15 - \ell}{\sigma}\right) - \Phi\!\left(\frac{-25 - \ell}{\sigma}\right), \qquad p_3 = 1 - \Phi\!\left(\frac{-15 - \ell}{\sigma}\right)$$
+$$P(\bar{x}_n < Q) = \Phi\!\left(\frac{\sqrt{n}\,(-\ell)}{\sigma}\right)$$
+and the overall bound is $P(\text{pass}) = \max(F_1, F_2, F_3)$.
+
+\subsection*{Plan 2 variance components}
+
+With $n$ units per location, $L$ locations and $N = nL$:
+$$\chi^2_{err} = F^{-1}_{\chi^2}\!\big(1-\sqrt{C/100};\; L(n-1)\big), \qquad \chi^2_{loc} = F^{-1}_{\chi^2}\!\big(1-\sqrt{C/100};\; L-1\big)$$
+$$h_1 = \frac{L-1}{\chi^2_{loc}} - 1, \qquad h_2 = \frac{L(n-1)}{\chi^2_{err}} - 1$$
+$$\mathrm{VAR} = \left(s_m^2 + \left(1-\tfrac{1}{n}\right)s_e^2\right) + \sqrt{\left(h_1 s_m^2\right)^2 + \left(\left(1-\tfrac{1}{n}\right)h_2 s_e^2\right)^2}$$
+$$\mathrm{MVAR} = \frac{(L-1)\,n\,s_m^2}{\chi^2_{loc}}$$
+The mean limits use the standard error $\sqrt{\mathrm{MVAR}/N}$ with the confidence multipliers
+$$z = \Phi^{-1}\!\left(\frac{1+\sqrt{C/100}}{2}\right) \;\; \text{(CU, two-sided)}, \qquad z = \Phi^{-1}\!\left(\sqrt{C/100}\right) \;\; \text{(dissolution, one-sided)}$$
+
+\end{document}
