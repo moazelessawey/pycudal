@@ -1,33 +1,49 @@
+# CITATION.cff
+#
+# This file lets GitHub show a "Cite this repository" button on the repo
+# page, and lets Zenodo (see ZENODO_SETUP.md) pull correct metadata when
+# archiving a release.
+#
+# IMPORTANT — placeholders to check before committing:
+#   - `given-names` / `family-names`: confirm exact spelling / preferred form
+#   - `orcid`: add if you have one (https://orcid.org) — strongly
+#     recommended for a citable scientific/technical tool; delete the line
+#     if you don't have one yet
+#   - `version` / `date-released`: keep in sync with the actual latest
+#     GitHub release every time you cut one (this file does not update
+#     itself)
+#   - `doi`: leave the line commented out until Zenodo has minted one (see
+#     ZENODO_SETUP.md), then uncomment and fill in
+
 cff-version: 1.2.0
-title: "PyCuDAL: parametric acceptance limits for USP <905> and USP <711>"
 message: "If you use this software, please cite it as below."
+title: "PyCuDAL: A Python Implementation of Parametric Acceptance Limits for USP <905> Content Uniformity and USP <711> Dissolution"
 type: software
-license: MIT
-repository-code: "https://github.com/moazelessawey/pycudal"
-version: "1.0.8"
 authors:
-  - family-names: El-Essawey
-    given-names: Moaz
-  - family-names: Bergum
-    given-names: James
-    note: "Original SAS CuDAL methodology and implementation (2007)."
-references:
-  - type: article
-    title: "Constructing Acceptance Limits for Multiple Stage Tests"
-    authors:
-      - family-names: Bergum
-        given-names: J. S.
-    year: 1990
-    journal: "Drug Development and Industrial Pharmacy"
-    volume: 16
-    issue: 14
-    pages: "2153-2166"
-  - type: article
-    title: "Acceptance Limits for the New ICH USP 29 Content Uniformity Test"
-    authors:
-      - family-names: Bergum
-        given-names: J.
-      - family-names: Li
-        given-names: H.
-    year: 2007
-    journal: "Pharmaceutical Technology"
+  - given-names: Moaz
+    family-names: Elessawey
+    # orcid: "https://orcid.org/0000-0000-0000-0000"
+repository-code: "https://github.com/moazelessawey/pycudal"
+url: "https://github.com/moazelessawey/pycudal"
+license: MIT
+version: "1.0.8"
+date-released: "2026-08-26"
+# doi: "10.5281/zenodo.XXXXXXX"
+keywords:
+  - pharmaceutical validation
+  - USP 905
+  - USP 711
+  - content uniformity
+  - dissolution
+  - parametric tolerance interval
+  - acceptance limits
+  - computer system validation
+abstract: >
+  PyCuDAL is an open-source Python re-implementation of CuDAL (Content
+  Uniformity and Dissolution Acceptance Limits), a legacy SAS/AF system
+  used to calculate parametric (tolerance-interval) acceptance limits and
+  pass-probability estimates for USP <905> Uniformity of Dosage Units
+  (Content Uniformity) and USP <711> Dissolution. Every formula has been
+  verified against the original SAS macros and cross-checked with an
+  independent R implementation. The package includes a command-line
+  interface and two graphical interfaces (Tkinter and optional PySide6).
