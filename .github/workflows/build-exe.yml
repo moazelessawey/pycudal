@@ -1,4 +1,4 @@
-name: Build Executables (Windows + Linux)
+name: Build Executables (Windows + Linux + macOS)
 
 on:
   workflow_dispatch:
@@ -12,105 +12,91 @@ permissions:
   contents: write
 
 jobs:
-  windows:
-    runs-on: windows-latest
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runs-on: windows-latest
+            os-key: win
+            ext: ".exe"
+            sep: ";"
+          - runs-on: ubuntu-latest
+            os-key: linux
+            ext: ""
+            sep: ":"
+          - runs-on: macos-latest   # Apple Silicon; add a macos-13 / macos-x64 entry for Intel Macs
+            os-key: macos
+            ext: ""
+            sep: ":"
+    runs-on: ${{ matrix.runs-on }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - uses: astral-sh/setup-uv@v3
 
-      - name: Install package + PyInstaller
-        run: uv pip install --system .[all,qt] pyinstaller
-
-      - name: Build Tk GUI (Windows)
-        shell: pwsh
+      # v1.0.8 -> 1.0.8 ; non-tag (manual) runs get dev-<short-sha>
+      - name: Derive version for asset names
+        shell: bash
         run: |
-          pyinstaller --onefile --noconsole --name CuDAL-windows `
-          --paths . `
-          --collect-all cudal --collect-all scipy --collect-all pandas --collect-all numpy `
-          --add-data "assets/logo.png:." `
-          --hidden-import matplotlib.backends.backend_tkagg `
-          --hidden-import=PIL._tkinter_finder --hidden-import=PIL._imagingtk `
-          cudal_gui.py
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            echo "PKG_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          else
+            echo "PKG_VERSION=dev-$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
+          fi
 
-      - name: Build Qt GUI (Windows)
-        shell: pwsh
-        run: |
-          pyinstaller --onefile --noconsole --name CuDAL-Qt-windows `
-            --paths . `
-            --collect-all cudal `
-            --collect-all scipy `
-            --collect-all pandas `
-            --collect-all numpy `
-            --add-data "assets/logo.png;." `
-            --hidden-import matplotlib.backends.backend_qtagg `
-            extras/cudal_gui_pyside6.py
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: CuDAL-windows
-          path: dist/*
-
-      - name: Attach to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'release'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            dist/CuDAL-windows.exe
-            dist/CuDAL-Qt-windows.exe
-
-  linux:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
-      - uses: astral-sh/setup-uv@v3
-
-      - name: System libraries (Tk + Qt runtime)
+      - name: System libraries (Linux only)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            tk tk-dev \
             libgl1 libegl1 libopengl0 libxkbcommon0 libdbus-1-3 \
             libfontconfig1 libfreetype6 libx11-6 libx11-xcb1 libxcb1 \
             libxext6 libxrender1 libglib2.0-0
 
       - name: Install package + PyInstaller
-        run: uv pip install --system .[all,qt] pyinstaller
+        run: uv pip install --system ".[all,qt]" pyinstaller
 
-      - name: Build Tk GUI (Linux)
+      - name: Build PySide6 GUI
+        shell: bash
         run: |
-          pyinstaller --onefile --noconsole --name CuDAL-linux \
+          NAME="pycudal-${PKG_VERSION}-${{ matrix.os-key }}"
+          pyinstaller --onefile --noconsole --name "$NAME" \
             --paths . \
             --collect-all cudal --collect-all scipy --collect-all pandas --collect-all numpy \
-            --add-data "assets/logo.png:." \
-            --hidden-import matplotlib.backends.backend_tkagg \
-            --hidden-import=PIL._tkinter_finder --hidden-import=PIL._imagingtk \
-            cudal_gui.py
-
-      - name: Build Qt GUI (Linux)
-        run: |
-          pyinstaller --onefile --noconsole --name CuDAL-Qt-linux \
-            --paths . \
-            --collect-all cudal \
-            --collect-all scipy \
-            --collect-all pandas \
-            --collect-all numpy \
-            --add-data "assets/logo.png:." \
+            --add-data "assets/logo.png${{ matrix.sep }}." \
             --hidden-import matplotlib.backends.backend_qtagg \
             extras/cudal_gui_pyside6.py
 
+      # On macOS, --noconsole produces a .app bundle (a directory); zip it so it
+      # can be attached to the release as a single asset.
+      - name: Zip macOS .app bundle
+        if: runner.os == 'macOS'
+        run: |
+          NAME="pycudal-${PKG_VERSION}-macos"
+          if [ -d "dist/${NAME}.app" ]; then
+            ditto -c -k --sequesterRsrc --keepParent "dist/${NAME}.app" "dist/${NAME}.zip"
+            rm -rf "dist/${NAME}.app"
+          fi
+
+      - name: Record final asset path
+        shell: bash
+        run: |
+          NAME="pycudal-${PKG_VERSION}-${{ matrix.os-key }}"
+          if [ -f "dist/${NAME}.zip" ]; then
+            echo "ASSET=dist/${NAME}.zip" >> "$GITHUB_ENV"
+          else
+            echo "ASSET=dist/${NAME}${{ matrix.ext }}" >> "$GITHUB_ENV"
+          fi
+
       - uses: actions/upload-artifact@v4
         with:
-          name: CuDAL-linux
+          name: pycudal-${{ matrix.os-key }}
           path: dist/*
 
       - name: Attach to GitHub Release
         if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            dist/CuDAL-linux
-            dist/CuDAL-Qt-linux
+          files: ${{ env.ASSET }}
