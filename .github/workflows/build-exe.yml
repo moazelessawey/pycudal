@@ -13,7 +13,6 @@ permissions:
 
 jobs:
   build:
-    if: ${{ !contains(github.ref, '-rc') }}
     strategy:
       fail-fast: false
       matrix:
