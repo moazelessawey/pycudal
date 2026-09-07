@@ -100,7 +100,7 @@ def run_cusp2(a):
         sigse_vals = grid(a.sigse_low, a.sigse_high, a.sigse_step)
         sigsm_vals = grid(a.sigsm_low, a.sigsm_high, a.sigsm_step)
         return cusp2.probability_of_passing(
-            table, a.num, a.loc, a.d1, u_vals, sigse_vals, sigsm_vals
+            table, a.num, a.loc, a.d1, a.d1, u_vals, sigse_vals, sigsm_vals
         )
     return cusp2.sample_probability(a.mean, a.se, a.sm, a.num, a.loc, a.target, a.cilevel)
 

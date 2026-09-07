@@ -13,6 +13,7 @@ permissions:
 
 jobs:
   build:
+    if: ${{ !contains(github.ref, '-rc') }}
     strategy:
       fail-fast: false
       matrix:
@@ -67,7 +68,7 @@ jobs:
             --collect-all cudal --collect-all scipy --collect-all pandas --collect-all numpy \
             --add-data "assets/logo.png${{ matrix.sep }}." \
             --hidden-import matplotlib.backends.backend_qtagg \
-            extras/cudal_gui_pyside6.py
+            cudal_gui.py
 
       # On macOS, --noconsole produces a .app bundle (a directory); zip it so it
       # can be attached to the release as a single asset.

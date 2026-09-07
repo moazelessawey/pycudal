@@ -115,7 +115,9 @@ def acceptance_limit_table(
     lo, hi = mean_search_range
 
     se_grid, sm_grid = np.meshgrid(
-        np.asarray(se_values, dtype=float), np.asarray(sm_values, dtype=float), indexing="ij"
+        np.asarray(se_values, dtype=float),
+        np.asarray(sm_values, dtype=float),
+        indexing="ij",
     )
     se_flat = se_grid.ravel()
     sm_flat = sm_grid.ravel()
@@ -132,14 +134,8 @@ def acceptance_limit_table(
         ulu = mean + z * se_of_mean
         return content_uniformity_bound(ulu, sigma, target) - target_prob
 
-    # Bump scan_points/bisect_iters to avoid crossing of overbd_of_sd(sd)
     meanl, meanl_found, meanu, meanu_found = batched_two_sided_bounds(
-        func_lower,
-        func_upper,
-        lo,
-        hi,
-        scan_points=200,
-        bisect_iters=30,
+        func_lower, func_upper, lo, hi
     )
 
     ok = meanl_found & meanu_found & (meanu > meanl)
@@ -153,7 +149,8 @@ def probability_of_passing(
     table: pd.DataFrame,
     num: int,
     loc: int,
-    d1: float,
+    dse: float,
+    dsm: float,
     u_values,
     sigse_values,
     sigsm_values,
@@ -195,10 +192,10 @@ def probability_of_passing(
         (meanl - u) * np.sqrt(n / expsm2)
     )
     pse = probchi(l * (nn - 1) * se**2 / expse2, l * (nn - 1)) - probchi(
-        l * (nn - 1) * (se - d1) ** 2 / expse2, l * (nn - 1)
+        l * (nn - 1) * (se - dse) ** 2 / expse2, l * (nn - 1)
     )
     psm = probchi((l - 1) * nn * sm**2 / expsm2, l - 1) - probchi(
-        (l - 1) * nn * (sm - d1) ** 2 / expsm2, l - 1
+        (l - 1) * nn * (sm - dsm) ** 2 / expsm2, l - 1
     )
 
     psum = np.sum(pmean * pse * psm, axis=0)  # (U, SIGSE, SIGSM)

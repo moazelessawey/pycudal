@@ -78,6 +78,7 @@ def _case_id_cusp2(case):
 # CUSP1 -- Content Uniformity, Sampling Plan 1  (Appendix G, Section G.1)
 # ===========================================================================
 
+
 @pytest.mark.parametrize("case", CUSP1_CASES, ids=[_case_id_cusp1(c) for c in CUSP1_CASES])
 def test_cusp1_acceptance_limit_matches_appendix_g(case):
     """
@@ -108,6 +109,7 @@ def test_cusp1_acceptance_limit_matches_appendix_g(case):
 # ===========================================================================
 # CUSP2 -- Content Uniformity, Sampling Plan 2  (Appendix G, Section G.2)
 # ===========================================================================
+
 
 @pytest.mark.parametrize("case", CUSP2_CASES, ids=[_case_id_cusp2(c) for c in CUSP2_CASES])
 def test_cusp2_acceptance_limit_matches_appendix_g(case):
@@ -166,6 +168,7 @@ def test_cusp2_acceptance_limit_matches_appendix_g(case):
 # Sanity checks on the reference data itself
 # ===========================================================================
 
+
 def test_reference_data_row_counts():
     """Guards against someone accidentally truncating or duplicating the
     frozen reference files themselves."""
@@ -180,6 +183,10 @@ def test_reference_data_cusp2_known_exclusions_absent():
     excluded = {(0.1, 3.0), (3.0, 0.1)}
     for case in CUSP2_CASES:
         if (case["loc"], case["perloc"], case["target"], case["lbound"], case["cilevel"]) == (
-            3, 2, 100.0, 99.0, 99.0
+            3,
+            2,
+            100.0,
+            99.0,
+            99.0,
         ):
             assert (case["se"], case["sm"]) not in excluded

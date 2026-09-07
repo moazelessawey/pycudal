@@ -63,7 +63,9 @@ def acceptance_limit_table(
     hi = min(hi, lim)
 
     se_grid, sm_grid = np.meshgrid(
-        np.asarray(se_values, dtype=float), np.asarray(sm_values, dtype=float), indexing="ij"
+        np.asarray(se_values, dtype=float),
+        np.asarray(sm_values, dtype=float),
+        indexing="ij",
     )
     se_flat = se_grid.ravel()
     sm_flat = sm_grid.ravel()

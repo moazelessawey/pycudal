@@ -29,7 +29,14 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from .core import batched_root_find, cinv, content_uniformity_bound, probchi, probit, probnorm
+from .core import (
+    batched_root_find,
+    cinv,
+    content_uniformity_bound,
+    probchi,
+    probit,
+    probnorm,
+)
 
 
 def acceptance_limit_table(

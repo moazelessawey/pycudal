@@ -57,21 +57,24 @@ evaluations to a few dozen vectorized ones.
 
 from __future__ import annotations
 
-from typing import Callable, Tuple
+from collections.abc import Callable
 
 import numpy as np
 from scipy.special import gammainc, gammaincinv, ndtr, ndtri
 
 __all__ = [
-    "probnorm",
-    "probit",
-    "probchi",
-    "cinv",
-    "sas_do_range",
-    "content_uniformity_bound",
-    "dissolution_bound",
+    "acid_stage_bound",
     "batched_root_find",
     "batched_two_sided_bounds",
+    "cinv",
+    "content_uniformity_bound",
+    "delayed_release_bound",
+    "dissolution_bound",
+    "extended_release_bound",
+    "probchi",
+    "probit",
+    "probnorm",
+    "sas_do_range",
 ]
 
 
@@ -239,22 +242,13 @@ def content_uniformity_bound(mu, sigma, target):
 # ---------------------------------------------------------------------------
 
 
-def dissolution_bound(llu, sigma):
+def _dissolution_stage_probs(llu, sigma):
     """
-    Replicates the ``COMPUTE`` SAS macro (identical in Disp1.sas and
-    Disp2.sas).
-
-    Estimated probability of passing the USP <711> Dissolution test
-    (stage 1: n=6, stage 2: n=12, stage 3: n=24), given a lower adjusted
-    bound on the population mean (``llu``) and population standard
-    deviation ``sigma``. Fully broadcastable, like
-    :func:`content_uniformity_bound`.
-
-    Returns
-    -------
-    float or numpy.ndarray
-        The "OVERBD" value: max(F1, F2, F3) across the three USP <711>
-        stages.
+    Internal helper returning the three individual USP <711> stage
+    probabilities (F1, F2, F3) rather than their max. Factored out of
+    :func:`dissolution_bound` so that :func:`delayed_release_bound` can
+    reuse the exact same Buffer-Stage formulas (Acceptance Table 4 is
+    structurally identical to Acceptance Table 1) on a per-level basis.
     """
     llu = np.asarray(llu, dtype=float)
     sigma = np.asarray(sigma, dtype=float)
@@ -272,7 +266,242 @@ def dissolution_bound(llu, sigma):
     p3 = 1 - probnorm((-15 - llu) / sigma)
     F3 = p3**24 + 24 * p2 * p3**23 + 276 * p2**2 * p3**22 - pm3
 
+    return F1, F2, F3
+
+
+def dissolution_bound(llu, sigma):
+    """
+    Replicates the ``COMPUTE`` SAS macro (identical in Disp1.sas and
+    Disp2.sas).
+
+    Estimated probability of passing the USP <711> Dissolution test
+    (stage 1: n=6, stage 2: n=12, stage 3: n=24), given a lower adjusted
+    bound on the population mean (``llu``) and population standard
+    deviation ``sigma``. Fully broadcastable, like
+    :func:`content_uniformity_bound`.
+
+    Returns
+    -------
+    float or numpy.ndarray
+        The "OVERBD" value: max(F1, F2, F3) across the three USP <711>
+        stages.
+    """
+    F1, F2, F3 = _dissolution_stage_probs(llu, sigma)
     result = np.maximum(np.maximum(F1, F2), F3)
+    return result if result.ndim else result.item()
+
+
+# ---------------------------------------------------------------------------
+# Extended-release / delayed-release dissolution (USP <711>, Acceptance
+# Tables 2, 3 and 4) -- NOT part of the original SAS CuDAL system. These are
+# new derivations, added on top of the same parametric-tolerance-interval
+# methodology and the same Bonferroni-bound technique used throughout this
+# module, extended to cover the additional dosage-form categories USP <711>
+# defines. See each function's docstring for the specific derivation.
+#
+# Modeling assumptions common to all three functions below (stated once
+# here rather than repeated):
+#   * Individual unit measurements are i.i.d. Normal(mu, sigma^2), exactly
+#     as assumed everywhere else in this module (Part 0 of the underlying
+#     statistical derivation).
+#   * Where a single-point (single test time) abstraction is required
+#     (Extended-Release), the "final test time" individual-unit check in
+#     USP <711> is treated as coinciding with the lower end of the stated
+#     range at that time point -- consistent with how the rest of CuDAL
+#     already reduces multi-faceted compendial rules to one evaluated
+#     point per module, rather than a full dissolution profile.
+#   * Where a compound (average-and-individual) criterion has no explicit
+#     USP inclusion-exclusion formula, the Fréchet/Bonferroni inequality
+#     P(A ∩ B) >= P(A) + P(B) - 1 is used, exactly as in
+#     :func:`content_uniformity_bound` (P2) and :func:`dissolution_bound`
+#     (F2, F3) above -- giving a guaranteed conservative lower bound, never
+#     an overestimate.
+# ---------------------------------------------------------------------------
+
+
+def extended_release_bound(mu, sigma, ql, qu):
+    """
+    USP <711> Extended-Release Dosage Forms, Acceptance Table 2 (L1/L2/L3).
+
+    Unlike Immediate-Release (a one-sided "at least Q" criterion),
+    Extended-Release requires the dissolved amount to fall *within* a
+    stated range [ql, qu] at the evaluated time point.
+
+    Derivation
+    ----------
+    L1 (n=6): every unit in [ql, qu] -- an i.i.d. product, exact::
+
+        F1 = [Phi((qu-mu)/sigma) - Phi((ql-mu)/sigma)]^6
+
+    L2 (n=12, +/-10% margin): the average of 12 units must lie in
+    [ql, qu], AND no individual unit may be more than 10% outside either
+    side of the range. Let::
+
+        p_ok12 = Phi((qu+10-mu)/sigma) - Phi((ql-10-mu)/sigma)   (all 12 within the +/-10% margin)
+        avg_fail12 = Phi((ql-mu)*sqrt(12)/sigma) + [1 - Phi((qu-mu)*sqrt(12)/sigma)]  (avg outside [ql,qu])
+
+    Bonferroni: F2 = p_ok12^12 - avg_fail12
+
+    L3 (n=24, +/-10%/+/-20% margins): average of 24 in [ql, qu]; NMT 2
+    of 24 units more than 10% outside the range (either side, combined);
+    no unit ever more than 20% outside the range. This is the same exact
+    multinomial counting device used in Disp1's Stage 3 (see
+    :func:`_dissolution_stage_probs`), just applied symmetrically to both
+    tails::
+
+        p_ok24     = Phi((qu+10-mu)/sigma) - Phi((ql-10-mu)/sigma)
+        p_border24 = [Phi((ql-10-mu)/sigma) - Phi((ql-20-mu)/sigma)]
+                     + [Phi((qu+20-mu)/sigma) - Phi((qu+10-mu)/sigma)]
+        F3 = p_ok24^24 + 24*p_border24*p_ok24^23 + 276*p_border24^2*p_ok24^22
+             - [Phi((ql-mu)*sqrt(24)/sigma) + (1 - Phi((qu-mu)*sqrt(24)/sigma))]
+
+    Parameters
+    ----------
+    mu, sigma : float or array_like
+        True population mean and standard deviation (% of label claim).
+    ql, qu : float
+        Lower and upper ends of the stated acceptance range (% of label
+        claim) at the evaluated time point.
+
+    Returns
+    -------
+    float or numpy.ndarray
+        max(F1, F2, F3).
+    """
+    mu = np.asarray(mu, dtype=float)
+    sigma = np.asarray(sigma, dtype=float)
+
+    F1 = (probnorm((qu - mu) / sigma) - probnorm((ql - mu) / sigma)) ** 6
+
+    p_ok12 = probnorm((qu + 10 - mu) / sigma) - probnorm((ql - 10 - mu) / sigma)
+    avg_fail12 = probnorm((ql - mu) * np.sqrt(12) / sigma) + (
+        1 - probnorm((qu - mu) * np.sqrt(12) / sigma)
+    )
+    F2 = p_ok12**12 - avg_fail12
+
+    p_ok24 = probnorm((qu + 10 - mu) / sigma) - probnorm((ql - 10 - mu) / sigma)
+    p_border24 = (probnorm((ql - 10 - mu) / sigma) - probnorm((ql - 20 - mu) / sigma)) + (
+        probnorm((qu + 20 - mu) / sigma) - probnorm((qu + 10 - mu) / sigma)
+    )
+    avg_fail24 = probnorm((ql - mu) * np.sqrt(24) / sigma) + (
+        1 - probnorm((qu - mu) * np.sqrt(24) / sigma)
+    )
+    F3 = p_ok24**24 + 24 * p_border24 * p_ok24**23 + 276 * p_border24**2 * p_ok24**22 - avg_fail24
+
+    result = np.maximum(np.maximum(F1, F2), F3)
+    return result if result.ndim else result.item()
+
+
+def acid_stage_bound(mu, sigma):
+    """
+    USP <711> Delayed-Release Dosage Forms, Acid Stage, Acceptance Table 3
+    (A1/A2/A3).
+
+    Unlike every other criterion in this module, the Acid Stage is an
+    *upper*-bound test: the drug should resist dissolving in acid, so the
+    criterion caps how much may dissolve, rather than requiring a minimum.
+    The 10% and 25% limits are fixed compendial constants (not
+    monograph-specific, unlike Q elsewhere).
+
+    Derivation
+    ----------
+    A1 (n=6): every unit <= 10% dissolved -- exact i.i.d. product::
+
+        A1 = [Phi((10-mu)/sigma)]^6
+
+    A2 (n=12) and A3 (n=24) both require (average <= 10%) AND (every
+    individual unit <= 25%) -- structurally simpler than the Immediate-
+    Release Stage 3 case, since USP <711> places no "NMT 2 units" relaxed
+    band here. Via Bonferroni::
+
+        A2 = [Phi((25-mu)/sigma)]^12 - [1 - Phi((10-mu)*sqrt(12)/sigma)]
+        A3 = [Phi((25-mu)/sigma)]^24 - [1 - Phi((10-mu)*sqrt(24)/sigma)]
+
+    Parameters
+    ----------
+    mu, sigma : float or array_like
+        True population mean and standard deviation of % dissolved in the
+        Acid Stage.
+
+    Returns
+    -------
+    float or numpy.ndarray
+        max(A1, A2, A3).
+    """
+    mu = np.asarray(mu, dtype=float)
+    sigma = np.asarray(sigma, dtype=float)
+
+    A1 = probnorm((10 - mu) / sigma) ** 6
+    A2 = probnorm((25 - mu) / sigma) ** 12 - (1 - probnorm((10 - mu) * np.sqrt(12) / sigma))
+    A3 = probnorm((25 - mu) / sigma) ** 24 - (1 - probnorm((10 - mu) * np.sqrt(24) / sigma))
+
+    result = np.maximum(np.maximum(A1, A2), A3)
+    return result if result.ndim else result.item()
+
+
+def delayed_release_bound(mu_acid, sigma_acid, mu_buffer, sigma_buffer, q_buffer=75.0):
+    """
+    USP <711> Delayed-Release Dosage Forms: combined Acid Stage
+    (Acceptance Table 3) + Buffer Stage (Acceptance Table 4).
+
+    Acceptance Table 4 (Buffer Stage) is structurally identical to
+    Acceptance Table 1 (Immediate-Release) -- same "NLT Q+5" / "avg >= Q,
+    none < Q-15" / "avg >= Q, NMT 2 < Q-15, none < Q-25" structure -- so
+    its per-level probabilities are obtained by reusing
+    :func:`_dissolution_stage_probs` directly, just shifted by
+    ``q_buffer`` (75% dissolved unless the monograph states otherwise).
+
+    USP <711> stops testing only when *both* stages conform at the same
+    level, so this models the level-i pass probability as the Acid-Stage
+    and Buffer-Stage level-i probabilities occurring together. The Acid
+    Stage (coating integrity) and Buffer Stage (matrix dissolution) are
+    governed by different physicochemical mechanisms, so -- as a
+    documented modeling simplification -- they are treated as
+    statistically independent, and the two probabilities are multiplied
+    at each level::
+
+        Level i combined = Acid_i * Buffer_i,   i = 1, 2, 3
+
+    with the overall bound taken as the best of the three levels, matching
+    the max(...) convention used everywhere else in this module.
+
+    Parameters
+    ----------
+    mu_acid, sigma_acid : float or array_like
+        True population mean and standard deviation of % dissolved in the
+        Acid Stage.
+    mu_buffer, sigma_buffer : float or array_like
+        True population mean and standard deviation of cumulative %
+        dissolved (Acid Stage + Buffer Stage) at the Buffer Stage
+        evaluation.
+    q_buffer : float, default 75.0
+        The Buffer Stage's Q value (% dissolved); 75% unless the
+        individual monograph specifies otherwise.
+
+    Returns
+    -------
+    float or numpy.ndarray
+        max over the three levels of (Acid_i * Buffer_i).
+    """
+    mu_acid = np.asarray(mu_acid, dtype=float)
+    sigma_acid = np.asarray(sigma_acid, dtype=float)
+
+    A1 = probnorm((10 - mu_acid) / sigma_acid) ** 6
+    A2 = probnorm((25 - mu_acid) / sigma_acid) ** 12 - (
+        1 - probnorm((10 - mu_acid) * np.sqrt(12) / sigma_acid)
+    )
+    A3 = probnorm((25 - mu_acid) / sigma_acid) ** 24 - (
+        1 - probnorm((10 - mu_acid) * np.sqrt(24) / sigma_acid)
+    )
+
+    llu_buffer = np.asarray(mu_buffer, dtype=float) - q_buffer
+    B1, B2, B3 = _dissolution_stage_probs(llu_buffer, sigma_buffer)
+
+    level1 = A1 * B1
+    level2 = A2 * B2
+    level3 = A3 * B3
+
+    result = np.maximum(np.maximum(level1, level2), level3)
     return result if result.ndim else result.item()
 
 
@@ -288,7 +517,7 @@ def batched_root_find(
     scan_points: int = 12,
     bisect_iters: int = 22,
     which: str = "first",
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Solve ``func(x) == 0`` independently for every element of a grid, in
     one vectorized pass, instead of one root-find per grid point.

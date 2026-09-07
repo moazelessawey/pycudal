@@ -7,15 +7,7 @@ pyinstaller --onefile --noconsole --name PyCuDAL \
   --paths . \
   --collect-all cudal --collect-all scipy --collect-all pandas --collect-all numpy \
   --add-data "assets/logo.png:." \
-  --hidden-import matplotlib.backends.backend_tkagg \
-  --hidden-import=PIL._tkinter_finder --hidden-import=PIL._imagingtk \
+  --hidden-import matplotlib.backends.backend_qtagg \
   cudal_gui.py
 
-pyinstaller --onefile --noconsole --name PyCuDAL-Qt \
-  --paths . \
-  --collect-all cudal --collect-all scipy --collect-all pandas --collect-all numpy \
-  --add-data "assets/logo.png:." \
-  --hidden-import matplotlib.backends.backend_qtagg \
-  extras/cudal_gui_pyside6.py
-
-echo "Done: dist/CuDAL and dist/CuDAL-Qt"
+echo "Done: dist/PyCuDAL"
