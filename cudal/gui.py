@@ -41,6 +41,7 @@ from PySide6.QtGui import (
     QBrush,
     QColor,
     QDesktopServices,
+    QDoubleValidator,
     QFont,
     QFontDatabase,
     QIcon,
@@ -49,7 +50,6 @@ from PySide6.QtGui import (
     QPen,
     QPixmap,
     QShortcut,
-    QDoubleValidator,
 )
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -66,18 +66,18 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMainWindow,
     QMessageBox,
+    QPlainTextEdit,
     QProgressBar,
     QPushButton,
     QRadioButton,
     QScrollArea,
     QSpinBox,
+    QStyledItemDelegate,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
     QVBoxLayout,
     QWidget,
-    QPlainTextEdit,
-    QStyledItemDelegate,
 )
 
 try:
@@ -100,7 +100,7 @@ REPO_URL = "https://github.com/moazelessawey/pycudal"
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-VERSION = "1.1.0 (PySide6, modern UI)"
+VERSION = "1.1.0rc2 (PySide6, modern UI)"
 BG = "#f4f6f9"
 PANEL_BG = "#ffffff"
 ACCENT = "#2f6fed"

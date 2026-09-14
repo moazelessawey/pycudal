@@ -47,4 +47,4 @@ __all__ = [
     "extdisp2",
 ]
 
-__version__ = "1.1.0rc1"
+__version__ = "1.1.0rc2"
