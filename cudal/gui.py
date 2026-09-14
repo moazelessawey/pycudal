@@ -49,7 +49,7 @@ from PySide6.QtGui import (
     QPen,
     QPixmap,
     QShortcut,
-    QDoubleValidator
+    QDoubleValidator,
 )
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -77,7 +77,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
     QPlainTextEdit,
-    QStyledItemDelegate
+    QStyledItemDelegate,
 )
 
 try:
@@ -483,6 +483,7 @@ def build_stylesheet(family: str) -> str:
     QToolBar QToolButton:hover {{ background: #dfe8f7; border-color: #aeb9c8; }}
     QToolBar QToolButton:pressed {{ background: #cfdffc; }}
     """
+
 
 # ---------------------------------------------------------------------------
 # Plot helpers
@@ -1600,8 +1601,9 @@ class NumericTable(QTableWidget):
 
     changed = Signal()
 
-    def __init__(self, rows=3, cols=4, parent=None,
-                 row_prefix="Loc", col_prefix="Unit", decimals=4):
+    def __init__(
+        self, rows=3, cols=4, parent=None, row_prefix="Loc", col_prefix="Unit", decimals=4
+    ):
         super().__init__(rows, cols, parent)
         self._decimals = decimals
         self._loading = False
@@ -1626,8 +1628,10 @@ class NumericTable(QTableWidget):
         self.set_size(self.rowCount(), self.columnCount())
 
     def set_size(self, rows, cols):
-        old = [[(self.item(r, c).text() if self.item(r, c) else "")
-                for c in range(self.columnCount())] for r in range(self.rowCount())]
+        old = [
+            [(self.item(r, c).text() if self.item(r, c) else "") for c in range(self.columnCount())]
+            for r in range(self.rowCount())
+        ]
         self._loading = True
         try:
             self.setRowCount(rows)
@@ -1675,7 +1679,7 @@ class NumericTable(QTableWidget):
             it.setData(Qt.ItemDataRole.UserRole, None)
             it.setBackground(QBrush(QColor("#f6f8fc")))
             it.setToolTip("empty (ignored)")
-        elif v is None:                      # invalid -> discarded + flagged
+        elif v is None:  # invalid -> discarded + flagged
             it.setText("")
             it.setData(Qt.ItemDataRole.UserRole, None)
             it.setBackground(QBrush(QColor("#fdf1f1")))
@@ -1695,16 +1699,32 @@ class NumericTable(QTableWidget):
     # -- Excel-like keyboard --------------------------------------------------
     def keyPressEvent(self, e):
         if e.matches(QKeySequence.StandardKey.Paste):
-            self.paste_clipboard(); e.accept(); return
+            self.paste_clipboard()
+            e.accept()
+            return
         if e.matches(QKeySequence.StandardKey.Copy):
-            self.copy_selection(); e.accept(); return
+            self.copy_selection()
+            e.accept()
+            return
         if e.key() == Qt.Key.Key_Delete:
-            self.clear_selection(); e.accept(); return
+            self.clear_selection()
+            e.accept()
+            return
         if self.state() != QAbstractItemView.State.EditingState:
             k = e.key()
-            if k in (Qt.Key.Key_Up, Qt.Key.Key_Down, Qt.Key.Key_Left, Qt.Key.Key_Right,
-                     Qt.Key.Key_Tab, Qt.Key.Key_Backtab, Qt.Key.Key_Return, Qt.Key.Key_Enter):
-                self._move(k); e.accept(); return
+            if k in (
+                Qt.Key.Key_Up,
+                Qt.Key.Key_Down,
+                Qt.Key.Key_Left,
+                Qt.Key.Key_Right,
+                Qt.Key.Key_Tab,
+                Qt.Key.Key_Backtab,
+                Qt.Key.Key_Return,
+                Qt.Key.Key_Enter,
+            ):
+                self._move(k)
+                e.accept()
+                return
         super().keyPressEvent(e)
 
     def _move(self, k):
@@ -1753,8 +1773,9 @@ class NumericTable(QTableWidget):
             return
         rs = sorted({i.row() for i in sel})
         cs = sorted({i.column() for i in sel})
-        lines = ["\t".join((self.item(r, c).text() if self.item(r, c) else "") for c in cs)
-                 for r in rs]
+        lines = [
+            "\t".join((self.item(r, c).text() if self.item(r, c) else "") for c in cs) for r in rs
+        ]
         QApplication.clipboard().setText("\n".join(lines))
 
     def clear_selection(self):
@@ -1889,9 +1910,11 @@ class AssayHelperDialog(QDialog):
 
         self.mode_cb.currentIndexChanged.connect(self._sync_dims)
         self.rows_sp.valueChanged.connect(
-            lambda _v: self.table.set_size(self.rows_sp.value(), self.cols_sp.value()))
+            lambda _v: self.table.set_size(self.rows_sp.value(), self.cols_sp.value())
+        )
         self.cols_sp.valueChanged.connect(
-            lambda _v: self.table.set_size(self.rows_sp.value(), self.cols_sp.value()))
+            lambda _v: self.table.set_size(self.rows_sp.value(), self.cols_sp.value())
+        )
         self._sync_dims()
 
     # -- table sizing -------------------------------------------------------
@@ -1910,7 +1933,7 @@ class AssayHelperDialog(QDialog):
     def _sync_dims_from_paste(self, rows, cols):
         """Keep the locations / units-per-location spin boxes in step with a pasted grid."""
         for spin, val in ((self.rows_sp, rows), (self.cols_sp, cols)):
-            spin.blockSignals(True)                      # don't rebuild & wipe the paste
+            spin.blockSignals(True)  # don't rebuild & wipe the paste
             spin.setValue(min(max(val, spin.minimum()), spin.maximum()))
             spin.blockSignals(False)
 
@@ -1945,7 +1968,7 @@ class AssayHelperDialog(QDialog):
         return v, True
 
     def _recompute(self, *_):
-        mat = self.table.get_matrix()          # NaN = missing/invalid
+        mat = self.table.get_matrix()  # NaN = missing/invalid
         rows = [r[~np.isnan(r)] for r in mat]  # per-location valid values
         self.table.blockSignals(True)
         try:
@@ -1984,7 +2007,7 @@ class AssayHelperDialog(QDialog):
                 f"Sample mean    : {mean:.4f}",
             ]
             if n >= 2:
-                sd = math.sqrt(sum((x - mean) ** 2 for x in flat) / (n-1))
+                sd = math.sqrt(sum((x - mean) ** 2 for x in flat) / (n - 1))
                 lines.append(f"Sample SD      : {sd:.4f}  (ddof=1)")
                 if mean:
                     lines.append(f"Sample CV      : {100.0 * sd / mean:.4f} %")
@@ -2013,18 +2036,14 @@ class AssayHelperDialog(QDialog):
             lines.append("SE              : n/a (need >= 2 values in a location)")
         if len(loc_means) >= 2:
             m0 = sum(loc_means) / len(loc_means)
-            sm = math.sqrt(
-                sum((m - m0) ** 2 for m in loc_means) / (len(loc_means) - 1)
-            )
+            sm = math.sqrt(sum((m - m0) ** 2 for m in loc_means) / (len(loc_means) - 1))
             lines.append(f"SM              : {sm:.4f}  (stdev of location means)")
         else:
             lines.append("SM              : n/a (need >= 2 locations with data)")
         if len(flat) >= 2:
             fm = sum(flat) / len(flat)
             fsd = math.sqrt(sum((x - fm) ** 2 for x in flat) / (len(flat) - 1))
-            lines.append(
-                f"[ref] all-values SD : {fsd:.4f} (ddof=1, {len(flat)} values)"
-            )
+            lines.append(f"[ref] all-values SD : {fsd:.4f} (ddof=1, {len(flat)} values)")
         return "\n".join(lines)
 
     def _copy(self):
@@ -4772,6 +4791,7 @@ class CudalApp(QMainWindow):
 
     def _show_assay_helper(self):
         AssayHelperDialog(self).exec()
+
 
 # ---------------------------------------------------------------------------
 # Self-test & entry point
