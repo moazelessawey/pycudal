@@ -49,6 +49,7 @@ from PySide6.QtGui import (
     QPen,
     QPixmap,
     QShortcut,
+    QDoubleValidator
 )
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -69,11 +70,14 @@ from PySide6.QtWidgets import (
     QPushButton,
     QRadioButton,
     QScrollArea,
+    QSpinBox,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
     QVBoxLayout,
     QWidget,
+    QPlainTextEdit,
+    QStyledItemDelegate
 )
 
 try:
@@ -1564,6 +1568,467 @@ class OCDialog(QDialog):
         if path:
             self._fig.savefig(path, dpi=150)
             QMessageBox.information(self, "Saved", f"Figure saved to {path}")
+
+
+class NumericDelegate(QStyledItemDelegate):
+    """Cell editor that only accepts numeric input (Excel-like editing)."""
+
+    def createEditor(self, parent, option, index):
+        ed = QLineEdit(parent)
+        ed.setValidator(QDoubleValidator())
+        ed.setStyleSheet("background:white;")
+        return ed
+
+    def setEditorData(self, editor, index):
+        editor.setText(index.data(Qt.ItemDataRole.EditRole) or "")
+        editor.selectAll()
+
+    def setModelData(self, editor, model, index):
+        model.setData(index, editor.text(), Qt.ItemDataRole.EditRole)
+
+
+class NumericTable(QTableWidget):
+    """Excel-like editable numeric grid.
+
+    * type / F2 / double-click edits a cell (numeric-only editor)
+    * Ctrl+V pastes an Excel range (TSV) starting at the current cell
+    * Ctrl+C copies the selection as TSV (paste-back into Excel works)
+    * Delete clears cells; arrows / Tab / Enter navigate like Excel
+    * every committed value is re-formatted as a clean number; invalid
+      entries are discarded (cell emptied + red flag), empty = missing
+    """
+
+    changed = Signal()
+
+    def __init__(self, rows=3, cols=4, parent=None,
+                 row_prefix="Loc", col_prefix="Unit", decimals=4):
+        super().__init__(rows, cols, parent)
+        self._decimals = decimals
+        self._loading = False
+        self._row_prefix, self._col_prefix = row_prefix, col_prefix
+        self.setItemDelegate(NumericDelegate(self))
+        self.setEditTriggers(
+            QAbstractItemView.EditTrigger.DoubleClicked
+            | QAbstractItemView.EditTrigger.EditKeyPressed
+            | QAbstractItemView.EditTrigger.AnyKeyPressed
+        )
+        self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
+        self.setAlternatingRowColors(True)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._ctx_menu)
+        self.cellChanged.connect(self._on_cell_changed)
+        self.set_size(rows, cols)
+
+    # -- labels / sizing ----------------------------------------------------
+    def set_labels(self, row_prefix, col_prefix):
+        self._row_prefix, self._col_prefix = row_prefix, col_prefix
+        self.set_size(self.rowCount(), self.columnCount())
+
+    def set_size(self, rows, cols):
+        old = [[(self.item(r, c).text() if self.item(r, c) else "")
+                for c in range(self.columnCount())] for r in range(self.rowCount())]
+        self._loading = True
+        try:
+            self.setRowCount(rows)
+            self.setColumnCount(cols)
+            self.setHorizontalHeaderLabels([f"{self._col_prefix} {j + 1}" for j in range(cols)])
+            self.setVerticalHeaderLabels([f"{self._row_prefix} {i + 1}" for i in range(rows)])
+            for r in range(rows):
+                for c in range(cols):
+                    val = old[r][c] if r < len(old) and c < len(old[r]) else ""
+                    self.setItem(r, c, QTableWidgetItem(val))
+            for r in range(rows):
+                for c in range(cols):
+                    self._apply(r, c)
+        finally:
+            self._loading = False
+        self.changed.emit()
+
+    # -- numeric normalization ----------------------------------------------
+    @staticmethod
+    def _parse(raw):
+        if raw is None:
+            return None
+        s = raw.strip().replace(" ", "")
+        if s == "":
+            return None
+        try:
+            v = float(s)
+        except ValueError:
+            return None
+        return v if math.isfinite(v) else None
+
+    def _fmt(self, v):
+        s = f"{v:.{self._decimals}f}".rstrip("0").rstrip(".")
+        return s if s not in ("", "-") else "0"
+
+    def _apply(self, r, c):
+        """Re-format cell (r, c) as a clean number; flag invalid input."""
+        it = self.item(r, c)
+        if it is None:
+            return
+        raw = it.text().strip()
+        v = self._parse(raw)
+        if raw == "":
+            it.setText("")
+            it.setData(Qt.ItemDataRole.UserRole, None)
+            it.setBackground(QBrush(QColor("#f6f8fc")))
+            it.setToolTip("empty (ignored)")
+        elif v is None:                      # invalid -> discarded + flagged
+            it.setText("")
+            it.setData(Qt.ItemDataRole.UserRole, None)
+            it.setBackground(QBrush(QColor("#fdf1f1")))
+            it.setToolTip("invalid number - ignored")
+        else:
+            it.setText(self._fmt(v))
+            it.setData(Qt.ItemDataRole.UserRole, float(v))
+            it.setBackground(QBrush(QColor("white")))
+            it.setToolTip("")
+
+    def _on_cell_changed(self, r, c):
+        if self._loading:
+            return
+        self._apply(r, c)
+        self.changed.emit()
+
+    # -- Excel-like keyboard --------------------------------------------------
+    def keyPressEvent(self, e):
+        if e.matches(QKeySequence.StandardKey.Paste):
+            self.paste_clipboard(); e.accept(); return
+        if e.matches(QKeySequence.StandardKey.Copy):
+            self.copy_selection(); e.accept(); return
+        if e.key() == Qt.Key.Key_Delete:
+            self.clear_selection(); e.accept(); return
+        if self.state() != QAbstractItemView.State.EditingState:
+            k = e.key()
+            if k in (Qt.Key.Key_Up, Qt.Key.Key_Down, Qt.Key.Key_Left, Qt.Key.Key_Right,
+                     Qt.Key.Key_Tab, Qt.Key.Key_Backtab, Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                self._move(k); e.accept(); return
+        super().keyPressEvent(e)
+
+    def _move(self, k):
+        r, c = self.currentRow(), self.currentColumn()
+        if k in (Qt.Key.Key_Down, Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            r = min(self.rowCount() - 1, r + 1)
+        elif k == Qt.Key.Key_Up:
+            r = max(0, r - 1)
+        elif k in (Qt.Key.Key_Right, Qt.Key.Key_Tab):
+            c = min(self.columnCount() - 1, c + 1)
+        elif k in (Qt.Key.Key_Left, Qt.Key.Key_Backtab):
+            c = max(0, c - 1)
+        self.setCurrentCell(r, c)
+
+    # -- clipboard -------------------------------------------------------------
+    def paste_clipboard(self):
+        text = QApplication.clipboard().text()
+        if not text or not text.strip():
+            return
+        lines = [ln for ln in text.splitlines() if ln.strip() != ""]
+        grid = [ln.split("\t") for ln in lines]
+        r0, c0 = max(0, self.currentRow()), max(0, self.currentColumn())
+        self._loading = True
+        try:
+            for i, cells in enumerate(grid):
+                r = r0 + i
+                if r >= self.rowCount():
+                    break
+                for j, tok in enumerate(cells):
+                    c = c0 + j
+                    if c >= self.columnCount():
+                        break
+                    it = self.item(r, c)
+                    if it is None:
+                        it = QTableWidgetItem("")
+                        self.setItem(r, c, it)
+                    it.setText(tok.strip())
+                    self._apply(r, c)
+        finally:
+            self._loading = False
+        self.changed.emit()
+
+    def copy_selection(self):
+        sel = self.selectedIndexes()
+        if not sel:
+            return
+        rs = sorted({i.row() for i in sel})
+        cs = sorted({i.column() for i in sel})
+        lines = ["\t".join((self.item(r, c).text() if self.item(r, c) else "") for c in cs)
+                 for r in rs]
+        QApplication.clipboard().setText("\n".join(lines))
+
+    def clear_selection(self):
+        self._loading = True
+        try:
+            for it in self.selectedItems():
+                it.setText("")
+                self._apply_it_empty(it)
+        finally:
+            self._loading = False
+        self.changed.emit()
+
+    def _apply_it_empty(self, it):
+        it.setData(Qt.ItemDataRole.UserRole, None)
+        it.setBackground(QBrush(QColor("#f6f8fc")))
+        it.setToolTip("empty (ignored)")
+
+    def clear_all(self):
+        self._loading = True
+        try:
+            for r in range(self.rowCount()):
+                for c in range(self.columnCount()):
+                    it = self.item(r, c)
+                    if it is not None:
+                        it.setText("")
+                        self._apply_it_empty(it)
+        finally:
+            self._loading = False
+        self.changed.emit()
+
+    def _ctx_menu(self, pos):
+        m = self.createStandardContextMenu()
+        m.addSeparator()
+        m.addAction("Paste from Excel (Ctrl+V)", self.paste_clipboard)
+        m.addAction("Copy selection (Ctrl+C)", self.copy_selection)
+        m.addAction("Clear selection (Del)", self.clear_selection)
+        m.addAction("Clear entire table", self.clear_all)
+        m.exec(self.viewport().mapToGlobal(pos))
+        m.deleteLater()
+
+    # -- data access -----------------------------------------------------------
+    def get_matrix(self):
+        """(rows, cols) float array; missing/invalid cells -> NaN."""
+        out = []
+        for r in range(self.rowCount()):
+            row = []
+            for c in range(self.columnCount()):
+                it = self.item(r, c)
+                v = it.data(Qt.ItemDataRole.UserRole) if it is not None else None
+                row.append(float(v) if v is not None else float("nan"))
+            out.append(row)
+        return np.array(out, dtype=float)
+
+
+# ---------------------------------------------------------------------------
+# Assay statistics helper (modal): raw assays -> mean/SD (Plan 1) or
+# mean/SE/SM (Plan 2). Pure convenience calculator; touches nothing else.
+# ---------------------------------------------------------------------------
+class AssayHelperDialog(QDialog):
+    """Modal helper window with an editable assay table.
+
+    Plan 1 mode: flat list of values  -> sample mean, SD (ddof=1), CV%.
+    Plan 2 mode: rows = locations, cols = units per location ->
+        overall mean = mean of the location means,
+        SE = sqrt(mean of the location variances),
+        SM = stdev(location means, ddof=1).
+    Results are shown as copyable plain text. Empty cells are ignored;
+    non-numeric entries are marked red and ignored.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Assay Statistics Helper")
+        self.setModal(True)
+        self.resize(620, 560)
+        lay = QVBoxLayout(self)
+
+        top = QHBoxLayout()
+        top.addWidget(QLabel("Mode:"))
+        self.mode_cb = QComboBox()
+        self.mode_cb.addItems(
+            [
+                "Plan 1 - single sample (mean / SD / CV)",
+                "Plan 2 - locations x units (mean / SE / SM)",
+            ]
+        )
+        top.addWidget(self.mode_cb, 1)
+        top.addWidget(QLabel("Rows:"))
+        self.rows_sp = QSpinBox()
+        self.rows_sp.setRange(2, 30)
+        self.rows_sp.setValue(3)
+        top.addWidget(self.rows_sp)
+        top.addWidget(QLabel("Cols:"))
+        self.cols_sp = QSpinBox()
+        self.cols_sp.setRange(1, 12)
+        self.cols_sp.setValue(1)
+        top.addWidget(self.cols_sp)
+        lay.addLayout(top)
+
+        hint = QLabel(
+            "Enter raw assay values (% claim / % dissolved). Empty cells are "
+            "ignored; non-numeric entries are marked red and ignored."
+        )
+        hint.setWordWrap(True)
+        hint.setObjectName("muted")
+        lay.addWidget(hint)
+
+        self.table = NumericTable(3, 4, self, row_prefix="Loc", col_prefix="Unit")
+        self.table.changed.connect(self._recompute)
+        lay.addWidget(self.table, 1)
+
+        self.out = QPlainTextEdit()
+        self.out.setReadOnly(True)
+        self.out.setMaximumHeight(175)
+        self.out.setStyleSheet("font-family: 'Courier New', monospace;")
+        lay.addWidget(self.out)
+
+        btns = QHBoxLayout()
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(self.accept)
+        paste_btn = QPushButton("Paste from Excel")
+        paste_btn.setToolTip("Paste a copied range from Excel into the grid (Ctrl+V)")
+        paste_btn.clicked.connect(self.table.paste_clipboard)
+        copy_btn = QPushButton("Copy")
+        copy_btn.clicked.connect(self.table.copy_selection)
+
+        btns.addStretch(1)
+        btns.addWidget(copy_btn)
+        btns.addWidget(paste_btn)
+        btns.addWidget(close_btn)
+        lay.addLayout(btns)
+
+        self.mode_cb.currentIndexChanged.connect(self._sync_dims)
+        self.rows_sp.valueChanged.connect(
+            lambda _v: self.table.set_size(self.rows_sp.value(), self.cols_sp.value()))
+        self.cols_sp.valueChanged.connect(
+            lambda _v: self.table.set_size(self.rows_sp.value(), self.cols_sp.value()))
+        self._sync_dims()
+
+    # -- table sizing -------------------------------------------------------
+    def _sync_dims(self, *_):
+        plan2 = self.mode_cb.currentIndex() == 1
+        self.cols_sp.setEnabled(plan2)
+        if plan2:
+            self.cols_sp.setMinimum(2)
+            if self.cols_sp.value() < 2:
+                self.cols_sp.setValue(2)
+        else:
+            self.cols_sp.setMinimum(1)
+            self.cols_sp.setValue(1)
+        self._build()
+
+    def _sync_dims_from_paste(self, rows, cols):
+        """Keep the locations / units-per-location spin boxes in step with a pasted grid."""
+        for spin, val in ((self.rows_sp, rows), (self.cols_sp, cols)):
+            spin.blockSignals(True)                      # don't rebuild & wipe the paste
+            spin.setValue(min(max(val, spin.minimum()), spin.maximum()))
+            spin.blockSignals(False)
+
+    def _build(self, *_):
+        self.table.blockSignals(True)
+        r, c = self.rows_sp.value(), self.cols_sp.value()
+        plan2 = self.mode_cb.currentIndex() == 1
+        self.table.setRowCount(r)
+        self.table.setColumnCount(c)
+        self.table.setHorizontalHeaderLabels([f"Unit {j + 1}" for j in range(c)])
+        self.table.setVerticalHeaderLabels(
+            [f"Loc {i + 1}" if plan2 else f"Unit {i + 1}" for i in range(r)]
+        )
+        for i in range(r):
+            for j in range(c):
+                if self.table.item(i, j) is None:
+                    self.table.setItem(i, j, QTableWidgetItem(""))
+        self.table.blockSignals(False)
+        self._recompute()
+
+    # -- validation + recompute ---------------------------------------------
+    @staticmethod
+    def _parse(raw):
+        if raw == "":
+            return None, False
+        try:
+            v = float(raw.replace(",", ""))
+        except ValueError:
+            return None, False
+        if not math.isfinite(v):
+            return None, False
+        return v, True
+
+    def _recompute(self, *_):
+        mat = self.table.get_matrix()          # NaN = missing/invalid
+        rows = [r[~np.isnan(r)] for r in mat]  # per-location valid values
+        self.table.blockSignals(True)
+        try:
+            rows = []
+            for i in range(self.table.rowCount()):
+                row = []
+                for j in range(self.table.columnCount()):
+                    it = self.table.item(i, j)
+                    raw = it.text().strip() if it is not None else ""
+                    v, ok = self._parse(raw)
+                    if raw == "":
+                        it.setBackground(QColor("#f6f8fc"))
+                    elif ok:
+                        it.setBackground(QColor("#ffffff"))
+                    else:
+                        it.setBackground(QColor("#fdf1f1"))
+                    if ok:
+                        row.append(v)
+                rows.append(row)
+        finally:
+            self.table.blockSignals(False)
+        self.out.setPlainText(self._report(rows))
+
+    # -- report ---------------------------------------------------------------
+    def _report(self, rows):
+        plan2 = self.mode_cb.currentIndex() == 1
+        flat = [v for row in rows for v in row]
+        if not flat:
+            return "Enter at least one numeric assay value."
+        if not plan2:
+            n = len(flat)
+            mean = sum(flat) / n
+            lines = [
+                "SAMPLING PLAN 1 - single sample helper",
+                f"N valid values : {n}",
+                f"Sample mean    : {mean:.4f}",
+            ]
+            if n >= 2:
+                sd = math.sqrt(sum((x - mean) ** 2 for x in flat) / (n-1))
+                lines.append(f"Sample SD      : {sd:.4f}  (ddof=1)")
+                if mean:
+                    lines.append(f"Sample CV      : {100.0 * sd / mean:.4f} %")
+            else:
+                lines.append("Sample SD      : n/a (need >= 2 values)")
+            return "\n".join(lines)
+
+        loc_means, loc_vars = [], []
+        for r in rows:
+            if not r:
+                continue
+            m = sum(r) / len(r)
+            loc_means.append(m)
+            if len(r) >= 2:
+                loc_vars.append(sum((x - m) ** 2 for x in r) / (len(r) - 1))
+        lines = ["SAMPLING PLAN 2 - locations x units helper"]
+        if loc_means:
+            overall = sum(loc_means) / len(loc_means)
+            lines.append(f"Overall mean    : {overall:.4f}  (mean of location means)")
+        if loc_vars:
+            lines.append(
+                f"SE              : {math.sqrt(sum(loc_vars) / len(loc_vars)):.4f}"
+                "  (sqrt of mean location variance)"
+            )
+        else:
+            lines.append("SE              : n/a (need >= 2 values in a location)")
+        if len(loc_means) >= 2:
+            m0 = sum(loc_means) / len(loc_means)
+            sm = math.sqrt(
+                sum((m - m0) ** 2 for m in loc_means) / (len(loc_means) - 1)
+            )
+            lines.append(f"SM              : {sm:.4f}  (stdev of location means)")
+        else:
+            lines.append("SM              : n/a (need >= 2 locations with data)")
+        if len(flat) >= 2:
+            fm = sum(flat) / len(flat)
+            fsd = math.sqrt(sum((x - fm) ** 2 for x in flat) / (len(flat) - 1))
+            lines.append(
+                f"[ref] all-values SD : {fsd:.4f} (ddof=1, {len(flat)} values)"
+            )
+        return "\n".join(lines)
+
+    def _copy(self):
+        QApplication.clipboard().setText(self.out.toPlainText())
 
 
 # ---------------------------------------------------------------------------
@@ -4062,6 +4527,9 @@ class CudalApp(QMainWindow):
         a = runm.addAction("OC curve\u2026")
         a.setShortcut(QKeySequence("Ctrl+O"))
         a.triggered.connect(self._show_oc_current)
+        a = runm.addAction("Assay statistics helper\u2026")
+        a.setShortcut(QKeySequence("Ctrl+H"))
+        a.triggered.connect(self._show_assay_helper)
         runm.addSeparator()
         a = runm.addAction("Copy selection")
         a.setShortcut(QKeySequence.Copy)
@@ -4147,6 +4615,13 @@ class CudalApp(QMainWindow):
             "\u21ba",
             lambda: self._current_tab()._reset_defaults(),
             "Reset parameters to defaults",
+        )
+        add_tool(
+            "Calc",
+            "\u2211",
+            self._show_assay_helper,
+            "Assay statistics helper: mean/SD (Plan 1) or mean/SE/SM (Plan 2) "
+            "from raw assay values (Ctrl+H)",
         )
         add_tool("About", "?", self._show_about, "About PyCuDAL (F1)")
 
@@ -4295,6 +4770,8 @@ class CudalApp(QMainWindow):
         )
         QMessageBox.about(self, "About PyCuDAL", about_text)
 
+    def _show_assay_helper(self):
+        AssayHelperDialog(self).exec()
 
 # ---------------------------------------------------------------------------
 # Self-test & entry point
